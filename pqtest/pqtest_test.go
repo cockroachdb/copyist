@@ -1,0 +1,209 @@
+// Copyright 2020 The Cockroach Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+// implied. See the License for the specific language governing
+// permissions and limitations under the License.
+
+package pqtest_test
+
+import (
+	"database/sql"
+	"flag"
+	"github.com/cockroachdb/copyist/dockerdb"
+	"io"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/cockroachdb/copyist"
+	"github.com/stretchr/testify/require"
+
+	_ "github.com/lib/pq"
+)
+
+const dockerArgs = "-p 26257:26257 cockroachdb/cockroach:v20.1.3 start --insecure"
+const dataSourceName = "postgresql://root@localhost:26257?sslmode=disable"
+
+const resetScript = `
+DROP TABLE IF EXISTS customers;
+CREATE TABLE customers (id INT PRIMARY KEY, name TEXT);
+INSERT INTO customers VALUES (1, 'Andy'), (2, 'Jay'), (3, 'Darin');
+
+DROP TABLE IF EXISTS datatypes;
+`
+
+// TestMain registers a copyist driver and starts up a CRDB docker instance if
+// in recording mode. To run the pq tests, follow these steps:
+//
+//   1. Run the tests with the "-record" command-line flag. This will run the
+//      tests against the real PG driver and update the pqtest_sql_test.go file
+//      with recordings for each test. This tests generation of recordings.
+//   2. Run the test without the "-record" flag. This will run the tests against
+//      the copyist driver that plays back the recordings created by step #1.
+//      This tests playback of recording.
+//
+func TestMain(m *testing.M) {
+	flag.Parse()
+
+	// If in recording mode, then run database in docker container until test is
+	// complete.
+	var closer io.Closer
+	if copyist.IsRecording() {
+		closer = dockerdb.Start(dockerArgs, "postgres", dataSourceName)
+	}
+
+	copyist.Register("postgres", resetDB)
+
+	code := m.Run()
+
+	// Close the docker container before calling os.Exit; defers don't get
+	// called in that case.
+	if closer != nil {
+		closer.Close()
+	}
+
+	os.Exit(code)
+}
+
+// resetDB runs the DB reset scripts, which resets the database before each
+// test.
+func resetDB() {
+	db, err := sql.Open("postgres", dataSourceName)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(resetScript); err != nil {
+		panic(err)
+	}
+}
+
+// TestQuery fetches a single customer.
+func TestQuery(t *testing.T) {
+	defer copyist.Open().Close()
+
+	// Open database.
+	db, err := sql.Open("copyist_postgres", dataSourceName)
+	require.NoError(t, err)
+
+	rows, err := db.Query("SELECT name FROM customers WHERE id=$1", 1)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	for rows.Next() {
+		var name string
+		rows.Scan(&name)
+		require.Equal(t, "Andy", name)
+	}
+}
+
+// TestInsert inserts a row and ensures that it's been committed.
+func TestInsert(t *testing.T) {
+	defer copyist.Open().Close()
+
+	// Open database.
+	db, err := sql.Open("copyist_postgres", dataSourceName)
+	require.NoError(t, err)
+
+	res, err := db.Exec("INSERT INTO customers VALUES ($1, $2)", 4, "Joel")
+	require.NoError(t, err)
+
+	affected, err := res.RowsAffected()
+	require.NoError(t, err)
+	require.Equal(t, int64(1), affected)
+
+	rows, err := db.Query("SELECT COUNT(*) FROM customers")
+	require.NoError(t, err)
+	defer rows.Close()
+
+	for rows.Next() {
+		var cnt int
+		rows.Scan(&cnt)
+		require.Equal(t, 4, cnt)
+	}
+}
+
+// TestDataTypes queries data types that are interesting for the PQ driver.
+func TestDataTypes(t *testing.T) {
+	defer copyist.Open().Close()
+
+	// Open database.
+	db, err := sql.Open("copyist_postgres", dataSourceName)
+	require.NoError(t, err)
+
+	// Construct table with many data types.
+	res, err := db.Exec(`
+		CREATE TABLE datatypes
+		(i INT, s TEXT, t TIMESTAMP, b BOOL, by BYTES, f FLOAT, d DECIMAL, fa FLOAT[])
+	`)
+	require.NoError(t, err)
+
+	_, err = db.Exec(`
+		INSERT INTO datatypes
+		VALUES (1, 'foo', '2000-01-01T10:00:00Z', true, 'ABCD', 1.1, 100.1234, ARRAY(1.1, 2.2))
+	`)
+	require.NoError(t, err)
+
+	affected, err := res.RowsAffected()
+	require.NoError(t, err)
+	require.Equal(t, int64(0), affected)
+
+	rows, err := db.Query("SELECT i, s, t, b, by, f, d, fa FROM datatypes")
+	require.NoError(t, err)
+	defer rows.Close()
+	for rows.Next() {
+		var i int
+		var s, d, fa string
+		var tm time.Time
+		var b bool
+		var by []uint8
+		var f float64
+		require.NoError(t, rows.Scan(&i, &s, &tm, &b, &by, &f, &d, &fa))
+	}
+}
+
+// TestTxns commits and aborts transactions.
+func TestTxns(t *testing.T) {
+	defer copyist.Open().Close()
+
+	// Open database.
+	db, err := sql.Open("copyist_postgres", dataSourceName)
+	require.NoError(t, err)
+
+	// Commit a transaction.
+	tx, err := db.Begin()
+	require.NoError(t, err)
+
+	_, err = tx.Exec("INSERT INTO customers VALUES ($1, $2)", 4, "Joel")
+	require.NoError(t, err)
+
+	require.NoError(t, tx.Commit())
+
+	// Abort a transaction.
+	tx, err = db.Begin()
+	require.NoError(t, err)
+
+	_, err = tx.Exec("INSERT INTO customers VALUES ($1, $2)", 5, "Josh")
+	require.NoError(t, err)
+
+	require.NoError(t, tx.Rollback())
+
+	// Verify count.
+	rows, err := db.Query("SELECT COUNT(*) FROM customers")
+	require.NoError(t, err)
+	defer rows.Close()
+
+	for rows.Next() {
+		var cnt int
+		rows.Scan(&cnt)
+		require.Equal(t, 4, cnt)
+	}
+}
