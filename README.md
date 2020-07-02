@@ -125,3 +125,7 @@ test and/or by which thread.
 * copyist currently supports only the Postgres `pq` driver. If you'd like to
 extend copyist to support other drivers, like MySql or SQLite, you're invited to
 submit a pull request.
+
+* copyist does not implement every `sql` package driver interface and method. This
+may mean that copyist may not fully work with some drivers with more advanced
+features. Contributions in this area are welcome.
