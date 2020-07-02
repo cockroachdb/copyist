@@ -21,15 +21,15 @@ Imagine you have some application code that opens a connection to a Postgres
 database and queries some customer data:
 ```
 func QueryName(db *sql.DB) string {
-    rows, _ := db.Query("SELECT name FROM customers WHERE id=$1", 100)
-    defer rows.Close()
+	rows, _ := db.Query("SELECT name FROM customers WHERE id=$1", 100)
+	defer rows.Close()
 
-    for rows.Next() {
-        var name string
-        rows.Scan(&name)
-        return name
-    }
-    return ""
+	for rows.Next() {
+		var name string
+		rows.Scan(&name)
+		return name
+	}
+	return ""
 }
 ```
 The customary way to test this code would be to create a test database and
@@ -71,13 +71,13 @@ func TestMain(m *testing.M) {
 func TestQueryName(t *testing.T) {
 	defer copyist.Open().Close()
 
-    db, _ := sql.Open("copyist_postgres", "postgresql://root@localhost")
-    defer db.Close()
+	db, _ := sql.Open("copyist_postgres", "postgresql://root@localhost")
+	defer db.Close()
 
-    name := QueryName(db)
-    if name != "Andy" {
-        t.Error("failed test")
-    }
+	name := QueryName(db)
+	if name != "Andy" {
+		t.Error("failed test")
+	}
 }
 ```
 In your `TestMain` function (or any other place that gets called before any of
