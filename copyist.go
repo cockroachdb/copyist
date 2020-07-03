@@ -17,7 +17,6 @@ package copyist
 import (
 	"bytes"
 	"database/sql"
-	"database/sql/driver"
 	"errors"
 	"flag"
 	"fmt"
@@ -29,9 +28,7 @@ import (
 	"io/ioutil"
 	"os"
 	"runtime"
-	"strconv"
 	"strings"
-	"time"
 )
 
 // record instructs copyist to record all calls to the registered driver, if
@@ -353,7 +350,7 @@ func constructRecordingAst(recording []Record) ast.Expr {
 	for _, record := range recording {
 		var args []ast.Expr
 		for _, arg := range record.Args {
-			args = append(args, constructRecordArgAst(arg))
+			args = append(args, constructValueAst(arg))
 		}
 
 		// {Typ: "copyist.RecordType", Args: copyist.RecordArgs{...}}
@@ -374,87 +371,6 @@ func constructRecordingAst(recording []Record) ast.Expr {
 		recordingAst.Elts = append(recordingAst.Elts, recordAst)
 	}
 	return recordingAst
-}
-
-// constructRecordArgAst creates an AST expression that constructs the given
-// argument as a Go literal. All types that can be returned from a driver method
-// must be handled.
-func constructRecordArgAst(arg interface{}) ast.Expr {
-	switch t := arg.(type) {
-	case int:
-		return constructIntLiteral(t)
-	case int64:
-		return &ast.CallExpr{
-			Fun: &ast.Ident{Name: "int64"},
-			Args: []ast.Expr{&ast.BasicLit{Kind: token.INT, Value: strconv.FormatInt(t, 10)}},
-		}
-	case float64:
-		return constructFLoatLiteral(t)
-	case string:
-		return constructStringLiteral(t)
-	case bool:
-		if t {
-			return &ast.Ident{Name: "true"}
-		}
-		return &ast.Ident{Name: "false"}
-	case time.Time:
-		s := t.Format(time.RFC3339Nano)
-		return &ast.CallExpr{
-			Fun: constructQName("copyist", "ParseTime"),
-			Args: []ast.Expr{constructStringLiteral(s)},
-		}
-	case []string:
-		var elts []ast.Expr
-		for _, s := range t {
-			elts = append(elts, constructStringLiteral(s))
-		}
-		return &ast.CompositeLit{
-			Type: &ast.ArrayType{Elt: &ast.Ident{Name: "string"}},
-			Elts: elts,
-		}
-	case []uint8:
-		var elts []ast.Expr
-		for _, b := range t {
-			elts = append(elts, constructIntLiteral(int(b)))
-		}
-		return &ast.CompositeLit{
-			Type: &ast.ArrayType{Elt: &ast.Ident{Name: "uint8"}},
-			Elts: elts,
-		}
-	case []driver.Value:
-		var elts []ast.Expr
-		for _, v := range t {
-			elts = append(elts, constructRecordArgAst(v))
-		}
-		return &ast.CompositeLit{
-			Type: &ast.ArrayType{Elt: constructQName("driver", "Value")},
-			Elts: elts,
-		}
-	case error:
-		if t == io.EOF {
-			return constructQName("io", "EOF")
-		}
-		return &ast.CallExpr{
-			Fun:  constructQName("errors", "New"),
-			Args: []ast.Expr{constructStringLiteral(t.Error())},
-		}
-	case nil:
-		return &ast.Ident{Name: "nil"}
-	default:
-		panic(fmt.Sprintf("unsupported type: %T", t))
-	}
-}
-
-func constructIntLiteral(val int) *ast.BasicLit {
-	return &ast.BasicLit{Kind: token.INT, Value: strconv.Itoa(val)}
-}
-
-func constructFLoatLiteral(val float64) *ast.BasicLit {
-	return &ast.BasicLit{Kind: token.FLOAT, Value: strconv.FormatFloat(val, 'g', 19, 64)}
-}
-
-func constructStringLiteral(val string) *ast.BasicLit {
-	return &ast.BasicLit{Kind: token.STRING, Value: fmt.Sprintf("`%s`", val)}
 }
 
 func constructQName(qualifier, name string) *ast.SelectorExpr {

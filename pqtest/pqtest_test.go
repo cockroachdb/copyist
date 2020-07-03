@@ -40,6 +40,15 @@ INSERT INTO customers VALUES (1, 'Andy'), (2, 'Jay'), (3, 'Darin');
 DROP TABLE IF EXISTS datatypes;
 `
 
+type dataTypes struct {
+	i        int
+	s, d, fa string
+	tmz, tm  time.Time
+	b        bool
+	by       []uint8
+	f        float64
+}
+
 // TestMain registers a copyist driver and starts up a CRDB docker instance if
 // in recording mode. To run the pq tests, follow these steps:
 //
@@ -142,13 +151,17 @@ func TestDataTypes(t *testing.T) {
 	// Construct table with many data types.
 	res, err := db.Exec(`
 		CREATE TABLE datatypes
-		(i INT, s TEXT, t TIMESTAMP, b BOOL, by BYTES, f FLOAT, d DECIMAL, fa FLOAT[])
+		(i INT, s TEXT, tz TIMESTAMPTZ, t TIMESTAMP, b BOOL,
+		 by BYTES, f FLOAT, d DECIMAL, fa FLOAT[])
 	`)
 	require.NoError(t, err)
 
 	_, err = db.Exec(`
-		INSERT INTO datatypes
-		VALUES (1, 'foo', '2000-01-01T10:00:00Z', true, 'ABCD', 1.1, 100.1234, ARRAY(1.1, 2.2))
+		INSERT INTO datatypes VALUES
+			(1, 'foo', '2000-01-01T10:00:00Z', '2000-01-01T10:00:00Z', true,
+			 'ABCD', 1.1, 100.1234, ARRAY(1.1, 2.2)),
+			(2, '', '2000-02-02T11:11:11-08:00', '2000-02-02T11:11:11-08:00', false,
+			 '', -1e10, -0.0, ARRAY())
 	`)
 	require.NoError(t, err)
 
@@ -156,18 +169,29 @@ func TestDataTypes(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(0), affected)
 
-	rows, err := db.Query("SELECT i, s, t, b, by, f, d, fa FROM datatypes")
+	var out dataTypes
+	rows, err := db.Query("SELECT i, s, tz, t, b, by, f, d, fa FROM datatypes")
 	require.NoError(t, err)
-	defer rows.Close()
-	for rows.Next() {
-		var i int
-		var s, d, fa string
-		var tm time.Time
-		var b bool
-		var by []uint8
-		var f float64
-		require.NoError(t, rows.Scan(&i, &s, &tm, &b, &by, &f, &d, &fa))
-	}
+
+	rows.Next()
+	require.NoError(
+		t, rows.Scan(&out.i, &out.s, &out.tmz, &out.tm, &out.b, &out.by, &out.f, &out.d, &out.fa))
+	require.Equal(t, dataTypes{
+		i: 1, s: "foo", tmz: copyist.ParseTime("2000-01-01T10:00:00Z"),
+		tm: copyist.ParseTime("2000-01-01T10:00:00+00:00"), b: true,
+		by: []byte{'A', 'B', 'C', 'D'}, f: 1.1, d: "100.1234", fa: "{1.1,2.2}",
+	}, out)
+
+	rows.Next()
+	require.NoError(
+		t, rows.Scan(&out.i, &out.s, &out.tmz, &out.tm, &out.b, &out.by, &out.f, &out.d, &out.fa))
+	require.Equal(t, dataTypes{
+		i: 2, s: "", tmz: copyist.ParseTime("2000-02-02T19:11:11Z"),
+		tm: copyist.ParseTime("2000-02-02T11:11:11+00:00"), b: false,
+		by: []byte{}, f: -1e10, d: "0.0", fa: "{}",
+	}, out)
+
+	rows.Close()
 }
 
 // TestTxns commits and aborts transactions.

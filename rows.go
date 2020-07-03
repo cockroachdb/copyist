@@ -61,7 +61,9 @@ func (r *proxyRows) Next(dest []driver.Value) error {
 		err := r.rows.Next(dest)
 		if err == nil {
 			destCopy = make([]driver.Value, len(dest))
-			copy(destCopy, dest)
+			for i := range dest {
+				destCopy[i] = deepCopyValue(dest[i])
+			}
 		}
 		r.driver.recording = append(
 			r.driver.recording, Record{Typ: RowsNext, Args: RecordArgs{destCopy, err}})
