@@ -81,7 +81,7 @@ func TestQueryName(t *testing.T) {
 }
 ```
 In your `TestMain` function (or any other place that gets called before any of
-tests), call te `copyist.Register` function. This function registers a new
+tests), call the `copyist.Register` function. This function registers a new
 driver with Go's `sql` package with the name `copyist_<driverName>`. In any
 tests you'd like to record, add a `defer copyist.Open().Close()` statement.
 This statement begins a new recording session, and then generates playback code
@@ -117,10 +117,10 @@ clean state, by dropping/creating tables, deleting data from table, and/or
 inserting "fixture" data into tables that makes testing more convenient.
 
 ## Limitations
-* Because of the way copyist works, it can only be used with non-parallel, single-
-threaded tests and application code. This is because the driver code has no way
-of knowing which connections, statements, and transactions are used by which
-test and/or by which thread.
+* Because of the way copyist works, it can only be used with non-parallel,
+single-threaded tests and application code. This is because the driver code has
+no way of knowing which connections, statements, and transactions are used by
+which test and/or by which thread.
 
 * copyist currently supports only the Postgres `pq` driver. If you'd like to
 extend copyist to support other drivers, like MySql or SQLite, you're invited to
