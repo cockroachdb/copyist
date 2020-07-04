@@ -100,6 +100,7 @@ time requires a recompile of the test, so will take longer):
 ```
 go test -run TestQueryName
 go test -run TestQueryName
+go test -run TestQueryName
 ```
 It should now run significantly faster. 
 
@@ -115,6 +116,39 @@ running in "recording" mode. This reset function can do anything it likes, but
 usually it will run a SQL script against the database in order to reset it to a
 clean state, by dropping/creating tables, deleting data from table, and/or
 inserting "fixture" data into tables that makes testing more convenient.
+
+## Troubleshooting
+#### I'm seeing "unexpected call" panics telling me to "regenerate recording"
+This just means that you need to re-run your tests with the "-record" command
+line flag, in order to generate new recordings. Most likely, you changed either
+your application or your test code so that they call the database differently,
+using a different sequence or content of calls.
+
+However, there are rarer cases where you've regenerated recordings, have made no
+test or application changes, and yet are still seeing this error when you run
+your tests in different orders. This is caused by non-determinism in either your
+application or in the ORM you're using.
+
+As an example of non-determinism, some ORMs send a setup query to the database
+when the first connection is opened in order to determine the database version.
+So whichever test happens to run first records an extra Query call. If you run
+a different test first, you'll see the "unexpected call" error, since other
+tests aren't expecting the extra call.
+
+The solution to these problems is to eliminate the non-determinism. For example,
+in the case of an ORM sending a setup query, initialize it from your `TestMain`
+method:
+```
+func TestMain(m *testing.M) {
+	flag.Parse()
+	copyist.Register("postgres", resetDB)
+	closer := copyist.Open()
+	pop.Connect("test-copyist")
+    closer.Close()
+	os.Exit(m.Run())
+}
+```
+This triggers the first query in TestMain, which is always run before tests.
 
 ## Limitations
 * Because of the way copyist works, it can only be used with non-parallel,

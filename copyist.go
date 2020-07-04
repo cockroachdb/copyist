@@ -166,20 +166,10 @@ func Open() io.Closer {
 	}
 
 	// Get name and path of calling test function.
-	pc, fileName, _, _ := runtime.Caller(1)
-	if !strings.HasSuffix(fileName, "_test.go") {
-		panic(fmt.Sprintf("Open was not called from a test file: %v", fileName))
-	}
-
-	// Extract package name from calling function name.
-	funcName := runtime.FuncForPC(pc).Name()
+	fileName, funcName := findTestFileAndName()
 
 	// Synthesize the recording name by prepending the driver name.
 	recordingName := fmt.Sprintf("%s/%s", registered.driverName, funcName)
-
-	// Clear any pooled connection in order to ensure determinism. For more
-	// information, see the proxyDriver comment regarding connection pooling.
-	registered.clearPooledConnection()
 
 	if IsRecording() {
 		// Construct the recording file name by prefixing the "_test" suffix
@@ -191,11 +181,33 @@ func Open() io.Closer {
 	return openForPlayback(recordingName)
 }
 
+// findTestFileAndName searches the call stack, looking for the test that called
+// copyist.Open. Search up to N levels, looking for a file that ends in
+// "_test.go" and extract the function name from it. Return both the filename
+// and function name.
+func findTestFileAndName() (fileName, funcName string) {
+	const levels = 5
+	for i := 0; i < levels; i++ {
+		var pc uintptr
+		pc, fileName, _, _ = runtime.Caller(2 + i)
+		if strings.HasSuffix(fileName, "_test.go") {
+			// Extract package name from calling function name.
+			funcName = runtime.FuncForPC(pc).Name()
+			return fileName, funcName
+		}
+	}
+	panic(fmt.Sprintf("Open was not called directly or indirectly from a test file"))
+}
+
 func openForRecording(recordingName, fileName string) io.Closer {
 	// Invoke resetDB callback, if defined.
 	if registered.resetDB != nil {
 		registered.resetDB()
 	}
+
+	// Clear any pooled connection in order to ensure determinism. For more
+	// information, see the proxyDriver comment regarding connection pooling.
+	registered.clearPooledConnection()
 
 	// Reset recording (including any recording that occurred during the
 	// database reset).
@@ -261,6 +273,10 @@ func openForPlayback(recordingName string) io.Closer {
 	if !ok {
 		panic(fmt.Sprintf("no recording exists with this name: %v", recordingName))
 	}
+
+	// Clear any pooled connection in order to ensure determinism. For more
+	// information, see the proxyDriver comment regarding connection pooling.
+	registered.clearPooledConnection()
 
 	// Reset the registered driver with the recording to play back.
 	registered.recording = recording

@@ -18,6 +18,7 @@ import (
 	"database/sql"
 	"flag"
 	"github.com/cockroachdb/copyist/dockerdb"
+	"github.com/cockroachdb/copyist/pqtest"
 	"io"
 	"os"
 	"testing"
@@ -272,4 +273,19 @@ func TestPooling(t *testing.T) {
 		require.NotEqual(t, sessionID, nextSessionID)
 		rows.Close()
 	})
+}
+
+// TestIndirectOpen calls copyist.Open indirectly in a helper function.
+func TestIndirectOpen(t *testing.T) {
+	db, closer := pqtest.IndirectOpen(dataSourceName)
+	defer closer.Close()
+
+	rows, err := db.Query("SELECT name FROM customers WHERE id=$1", 1)
+	require.NoError(t, err)
+	defer rows.Close()
+	rows.Next()
+
+	var name string
+	rows.Scan(&name)
+	require.Equal(t, "Andy", name)
 }
