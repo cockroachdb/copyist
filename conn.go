@@ -14,12 +14,55 @@
 
 package copyist
 
-import "database/sql/driver"
+import (
+	"context"
+	"database/sql/driver"
+)
 
 // proxyConn records and plays back calls to driver.Conn methods.
 type proxyConn struct {
+	// Conn is a connection to a database. It is not used concurrently
+	// by multiple goroutines.
+	//
+	// Conn is assumed to be stateful.
+	driver.Conn
+
+	// SessionResetter may be implemented by Conn to allow drivers to reset the
+	// session state associated with the connection and to signal a bad
+	// connection.
+	driver.SessionResetter
+
+	// driver is a backpointer to the driver that created this connection.
 	driver *proxyDriver
-	conn   driver.Conn
+
+	// conn is the wrapped "real" connection. It is nil if in playback mode.
+	conn driver.Conn
+
+	// name is the data source name passed to Driver.Open. Only connections with
+	// the same name can be reused from the pool.
+	name string
+
+	// session is the id of the copyist session in which this connection was
+	// created. Connections with an older session id cannot be reused.
+	session int
+}
+
+// ResetSession is called while a connection is in the connection
+// pool. No queries will run on this connection until this method returns.
+//
+// If the connection is bad this should return driver.ErrBadConn to prevent
+// the connection from being returned to the connection pool. Any other
+// error will be discarded.
+//
+// proxyConn implements SessionResetter in order to take control of connection
+// pooling from the `sql` package. For more information, see the proxyDriver
+// comment regarding connection pooling.
+func (c *proxyConn) ResetSession(ctx context.Context) error {
+	// Return driver.ErrBadConn in order to prevent the `sql` package from
+	// pooling this connection. Instead, it will call Close on this connection,
+	// at which point the connection can try to return itself to the connection
+	// pool.
+	return driver.ErrBadConn
 }
 
 // Prepare returns a prepared statement, bound to this connection.
@@ -51,8 +94,12 @@ func (c *proxyConn) Prepare(query string) (driver.Stmt, error) {
 // idle connections, it shouldn't be necessary for drivers to
 // do their own connection caching.
 func (c *proxyConn) Close() error {
-	if c.driver.isRecording() {
-		return c.conn.Close()
+	// Try to return the connection to the pool rather than closing it.
+	if !c.driver.tryPoolConnection(c) {
+		// Not successful, so close the connection.
+		if c.driver.isRecording() {
+			return c.conn.Close()
+		}
 	}
 	return nil
 }

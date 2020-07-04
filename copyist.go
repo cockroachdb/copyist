@@ -177,6 +177,10 @@ func Open() io.Closer {
 	// Synthesize the recording name by prepending the driver name.
 	recordingName := fmt.Sprintf("%s/%s", registered.driverName, funcName)
 
+	// Clear any pooled connection in order to ensure determinism. For more
+	// information, see the proxyDriver comment regarding connection pooling.
+	registered.clearPooledConnection()
+
 	if IsRecording() {
 		// Construct the recording file name by prefixing the "_test" suffix
 		// with "_copyist".

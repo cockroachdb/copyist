@@ -18,6 +18,9 @@ import "database/sql/driver"
 
 // proxyResult records and plays back calls to driver.Result methods.
 type proxyResult struct {
+	// Result is the result of a query execution.
+	driver.Result
+
 	driver *proxyDriver
 	res    driver.Result
 }

@@ -18,6 +18,10 @@ import "database/sql/driver"
 
 // proxyStmt records and plays back calls to driver.Stmt methods.
 type proxyStmt struct {
+	// Stmt is a prepared statement. It is bound to a Conn and not
+	// used by multiple goroutines concurrently.
+	driver.Stmt
+
 	driver *proxyDriver
 	stmt   driver.Stmt
 }

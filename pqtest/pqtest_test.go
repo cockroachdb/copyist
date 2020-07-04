@@ -231,3 +231,45 @@ func TestTxns(t *testing.T) {
 		require.Equal(t, 4, cnt)
 	}
 }
+
+// TestPooling ensures that sessions are pooled in the same copyist session, but
+// not across copyist sessions.
+func TestPooling(t *testing.T) {
+	// Open database.
+	db, err := sql.Open("copyist_postgres", dataSourceName)
+	require.NoError(t, err)
+
+	var sessionID string
+
+	t.Run("ensure connections are pooled within same copyist session", func(t *testing.T) {
+		defer copyist.Open().Close()
+
+		var firstSessionID string
+		rows, err := db.Query("SHOW session_id")
+		require.NoError(t, err)
+		require.True(t, rows.Next())
+		require.NoError(t, rows.Scan(&firstSessionID))
+		require.False(t, rows.Next())
+		rows.Close()
+
+		rows, err = db.Query("SHOW session_id")
+		require.NoError(t, err)
+		require.True(t, rows.Next())
+		require.NoError(t, rows.Scan(&sessionID))
+		require.False(t, rows.Next())
+		require.Equal(t, firstSessionID, sessionID)
+		rows.Close()
+	})
+
+	t.Run("ensure connections are *not* pooled across copyist sessions", func(t *testing.T) {
+		defer copyist.Open().Close()
+
+		var nextSessionID string
+		rows, err := db.Query("SHOW session_id")
+		require.NoError(t, err)
+		require.True(t, rows.Next())
+		require.NoError(t, rows.Scan(&nextSessionID))
+		require.NotEqual(t, sessionID, nextSessionID)
+		rows.Close()
+	})
+}

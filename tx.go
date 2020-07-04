@@ -18,6 +18,9 @@ import "database/sql/driver"
 
 // proxyTx records and plays back calls to driver.Tx methods.
 type proxyTx struct {
+	// Tx is a transaction.
+	driver.Tx
+
 	driver *proxyDriver
 	tx     driver.Tx
 }

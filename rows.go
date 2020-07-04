@@ -18,6 +18,9 @@ import "database/sql/driver"
 
 // proxyRows records and plays back calls to driver.Rows methods.
 type proxyRows struct {
+	// Rows is an iterator over an executed query's results.
+	driver.Rows
+
 	driver *proxyDriver
 	rows   driver.Rows
 }
