@@ -144,7 +144,7 @@ func TestMain(m *testing.M) {
 	copyist.Register("postgres", resetDB)
 	closer := copyist.Open()
 	pop.Connect("test-copyist")
-    closer.Close()
+	closer.Close()
 	os.Exit(m.Run())
 }
 ```
