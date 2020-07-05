@@ -129,7 +129,7 @@ func Register(driverName string, resetDB ResetCallback) error {
 	} else {
 		registered = &proxyDriver{driverName: driverName}
 	}
-	sql.Register("copyist_"+driverName, registered)
+	sql.Register(copyistDriverName(driverName), registered)
 
 	return nil
 }
@@ -408,6 +408,12 @@ func extractPackageName(funcName string) string {
 	pkgName := funcName[start+1:]
 	end := strings.Index(pkgName, ".")
 	return pkgName[:end]
+}
+
+// copyistDriverName constructs the copyist wrapper driver's name as a function
+// of the wrapped driver's name.
+func copyistDriverName(driverName string) string {
+	return "copyist_" + driverName
 }
 
 var initSkeleton = `package %s

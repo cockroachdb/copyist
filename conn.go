@@ -17,6 +17,9 @@ package copyist
 import (
 	"context"
 	"database/sql/driver"
+	"strings"
+
+	"github.com/jmoiron/sqlx"
 )
 
 // proxyConn records and plays back calls to driver.Conn methods.
@@ -68,9 +71,31 @@ func (c *proxyConn) ResetSession(ctx context.Context) error {
 // Prepare returns a prepared statement, bound to this connection.
 func (c *proxyConn) Prepare(query string) (driver.Stmt, error) {
 	if c.driver.isRecording() {
+		// TODO(andyk): This is a hack that works around problems with the sqlx
+		// library's named args. sqlx uses a hardcoded list of driver names to
+		// determine how to represent parameters in prepared queries. For
+		// example, postgres uses $1, mysql uses ?, sqlserver uses @, and so on.
+		// But since copyist defines a custom driver name, sqlx falls back to
+		// the default ?, which won't work with some databases. These issues
+		// describe the "custom driver" problem:
+		//
+		//   https://github.com/jmoiron/sqlx/issues/400
+		//   https://github.com/jmoiron/sqlx/issues/559
+		//
+		// Workaround this problem by rebinding the query if the bind type of
+		// the inner driver is different than the default ? character.
+		//
+		// NOTE: This doesn't work in cases where the parameter character is
+		// in a quoted string, etc. Unfortunately, there's not much to be done.
+		originalQuery := query
+		bindType := sqlx.BindType(c.driver.driverName)
+		if bindType != sqlx.QUESTION && strings.IndexByte(query, '?') != -1 {
+			query = sqlx.Rebind(bindType, query)
+		}
+
 		stmt, err := c.conn.Prepare(query)
 		c.driver.recording = append(
-			c.driver.recording, Record{Typ: ConnPrepare, Args: RecordArgs{query, err}})
+			c.driver.recording, Record{Typ: ConnPrepare, Args: RecordArgs{originalQuery, err}})
 		if err != nil {
 			return nil, err
 		}

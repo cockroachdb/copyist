@@ -17,21 +17,23 @@ package pqtest_test
 import (
 	"database/sql"
 	"flag"
-	"github.com/cockroachdb/copyist/dockerdb"
-	"github.com/cockroachdb/copyist/pqtest"
 	"io"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/cockroachdb/copyist"
+	"github.com/cockroachdb/copyist/dockerdb"
+	"github.com/cockroachdb/copyist/pqtest"
+	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 
 	_ "github.com/lib/pq"
 )
 
-const dockerArgs = "-p 26257:26257 cockroachdb/cockroach:v20.1.3 start --insecure"
-const dataSourceName = "postgresql://root@localhost:26257?sslmode=disable"
+// Don't use default CRDB port in case another instance is already running.
+const dockerArgs = "-p 26888:26257 cockroachdb/cockroach:v20.1.3 start --insecure"
+const dataSourceName = "postgresql://root@localhost:26888?sslmode=disable"
 
 const resetScript = `
 DROP TABLE IF EXISTS customers;
@@ -288,4 +290,29 @@ func TestIndirectOpen(t *testing.T) {
 	var name string
 	rows.Scan(&name)
 	require.Equal(t, "Andy", name)
+}
+
+// TestSqlx tests usage of the `sqlx` package with copyist.
+func TestSqlx(t *testing.T) {
+	defer copyist.Open().Close()
+
+	// Open database.
+	db, err := sqlx.Open("copyist_postgres", dataSourceName)
+	require.NoError(t, err)
+	tx, err := db.Beginx()
+	require.NoError(t, err)
+
+	// Named query.
+	cust := struct{ Id int }{Id: 1}
+	rows, err := tx.NamedQuery("SELECT name FROM customers WHERE id=:id", cust)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	for rows.Next() {
+		var name string
+		rows.Scan(&name)
+		require.Equal(t, "Andy", name)
+	}
+
+	require.NoError(t, tx.Commit())
 }
