@@ -32,7 +32,7 @@ func (r *proxyResult) LastInsertId() (int64, error) {
 	if r.driver.isRecording() {
 		id, err := r.res.LastInsertId()
 		r.driver.recording = append(
-			r.driver.recording, Record{Typ: ResultLastInsertId, Args: RecordArgs{id, err}})
+			r.driver.recording, &Record{Typ: ResultLastInsertId, Args: RecordArgs{id, err}})
 		return id, err
 	}
 
@@ -50,7 +50,7 @@ func (r *proxyResult) RowsAffected() (int64, error) {
 	if r.driver.isRecording() {
 		affected, err := r.res.RowsAffected()
 		r.driver.recording = append(
-			r.driver.recording, Record{Typ: ResultRowsAffected, Args: RecordArgs{affected, err}})
+			r.driver.recording, &Record{Typ: ResultRowsAffected, Args: RecordArgs{affected, err}})
 		return affected, err
 	}
 

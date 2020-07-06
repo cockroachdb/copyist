@@ -150,6 +150,16 @@ func TestMain(m *testing.M) {
 ```
 This triggers the first query in TestMain, which is always run before tests.
 
+#### The generated copyist test files are too big
+The size of the test files is directly related to the number of accesses your
+tests make to the database, as well as the amount of data that they request.
+While copyist takes pains to generate efficient code that eliminates as much
+redundancy as possible, there's only so much it can do. Try to write tests that
+operate over smaller amounts of interesting data. For tests that require large
+numbers of database calls, or large amounts of data, use a different form of
+verification. One nice thing about copyist is that you can pick and choose
+which tests will use it. The right tool for the right job, and all that.
+
 ## Limitations
 * Because of the way copyist works, it can only be used with non-parallel,
 single-threaded tests and application code. This is because the driver code has

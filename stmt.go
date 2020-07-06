@@ -49,7 +49,8 @@ func (s *proxyStmt) Close() error {
 func (s *proxyStmt) NumInput() int {
 	if s.driver.isRecording() {
 		num := s.stmt.NumInput()
-		s.driver.recording = append(s.driver.recording, Record{Typ: StmtNumInput, Args: RecordArgs{num}})
+		s.driver.recording =
+			append(s.driver.recording, &Record{Typ: StmtNumInput, Args: RecordArgs{num}})
 		return num
 	}
 
@@ -64,7 +65,8 @@ func (s *proxyStmt) NumInput() int {
 func (s *proxyStmt) Exec(args []driver.Value) (driver.Result, error) {
 	if s.driver.isRecording() {
 		res, err := s.stmt.Exec(args)
-		s.driver.recording = append(s.driver.recording, Record{Typ: StmtExec, Args: RecordArgs{err}})
+		s.driver.recording =
+			append(s.driver.recording, &Record{Typ: StmtExec, Args: RecordArgs{err}})
 		if err != nil {
 			return nil, err
 		}
@@ -86,7 +88,8 @@ func (s *proxyStmt) Exec(args []driver.Value) (driver.Result, error) {
 func (s *proxyStmt) Query(args []driver.Value) (driver.Rows, error) {
 	if s.driver.isRecording() {
 		rows, err := s.stmt.Query(args)
-		s.driver.recording = append(s.driver.recording, Record{Typ: StmtQuery, Args: RecordArgs{err}})
+		s.driver.recording =
+			append(s.driver.recording, &Record{Typ: StmtQuery, Args: RecordArgs{err}})
 		if err != nil {
 			return nil, err
 		}

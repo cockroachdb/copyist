@@ -95,7 +95,7 @@ func (c *proxyConn) Prepare(query string) (driver.Stmt, error) {
 
 		stmt, err := c.conn.Prepare(query)
 		c.driver.recording = append(
-			c.driver.recording, Record{Typ: ConnPrepare, Args: RecordArgs{originalQuery, err}})
+			c.driver.recording, &Record{Typ: ConnPrepare, Args: RecordArgs{originalQuery, err}})
 		if err != nil {
 			return nil, err
 		}
@@ -135,7 +135,8 @@ func (c *proxyConn) Close() error {
 func (c *proxyConn) Begin() (driver.Tx, error) {
 	if c.driver.isRecording() {
 		tx, err := c.conn.Begin()
-		c.driver.recording = append(c.driver.recording, Record{Typ: ConnBegin, Args: RecordArgs{err}})
+		c.driver.recording =
+			append(c.driver.recording, &Record{Typ: ConnBegin, Args: RecordArgs{err}})
 		if err != nil {
 			return nil, err
 		}

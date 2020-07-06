@@ -64,6 +64,8 @@ type Record struct {
 	Args RecordArgs
 }
 
+type Recording []*Record
+
 // proxyDriver records and plays back calls to driver.Driver methods.
 //
 // proxyDriver and proxyConn work together to take over connection pooling from
@@ -105,7 +107,7 @@ type proxyDriver struct {
 
 	// recording stores the calls made to the driver so they can be played back
 	// later.
-	recording []Record
+	recording Recording
 
 	// index is the current offset into the recording slice. It is used only
 	// during playback mode.
@@ -138,7 +140,7 @@ func (d *proxyDriver) Open(name string) (driver.Conn, error) {
 
 	if d.isRecording() {
 		conn, err := d.wrapped.Open(name)
-		d.recording = append(d.recording, Record{Typ: DriverOpen, Args: RecordArgs{err}})
+		d.recording = append(d.recording, &Record{Typ: DriverOpen, Args: RecordArgs{err}})
 		if err != nil {
 			return nil, err
 		}
@@ -217,7 +219,7 @@ func (d *proxyDriver) clearPooledConnection() {
 
 // verifyRecord returns one of the records in recording, failing with a nice
 // error if no such record exists.
-func (d *proxyDriver) verifyRecord(recordTyp RecordType) Record {
+func (d *proxyDriver) verifyRecord(recordTyp RecordType) *Record {
 	if d.recording == nil {
 		panic("copyist.Open was never called")
 	}
@@ -236,7 +238,7 @@ func (d *proxyDriver) verifyRecord(recordTyp RecordType) Record {
 // verifyRecordWithStringArg returns one of the records in recording, failing
 // with a nice error if no such record exists, or if its first argument does not
 // match the given string.
-func (d *proxyDriver) verifyRecordWithStringArg(recordTyp RecordType, arg string) Record {
+func (d *proxyDriver) verifyRecordWithStringArg(recordTyp RecordType, arg string) *Record {
 	record := d.verifyRecord(recordTyp)
 	if record.Args[0].(string) != arg {
 		panic(fmt.Sprintf("mismatched argument to %s, expected %s, got %s - regenerate recording",

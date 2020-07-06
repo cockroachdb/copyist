@@ -15,18 +15,11 @@
 package copyist
 
 import (
-	"bytes"
 	"database/sql"
 	"errors"
 	"flag"
 	"fmt"
-	"go/ast"
-	"go/format"
-	"go/parser"
-	"go/token"
 	"io"
-	"io/ioutil"
-	"os"
 	"runtime"
 	"strings"
 )
@@ -65,13 +58,10 @@ type ResetCallback func()
 // when Close is called.
 type closer func() error
 
+// Close implements the io.Closer interface method.
 func (c closer) Close() error {
 	return c()
 }
-
-// testOut is used by tests to verify the output recording. If testOut is not
-// nil, then the recording will be sent to this writer rather than to a file.
-var testOut io.Writer
 
 // registered is the proxy driver created during the registration process. It is
 // nil if Register has not yet been called.
@@ -79,12 +69,12 @@ var registered *proxyDriver
 
 // recordingMap maps from driverName + funcName to the recording made for that
 // combination.
-var recordingMap = make(map[string][]Record)
+var recordingMap = make(map[string]Recording)
 
 // AddRecording is called by the generated code to enter all the recordings into
 // the map as part of initialization. Those recordings can then be accessed for
 // playback.
-func AddRecording(recordingName string, recording []Record) {
+func AddRecording(recordingName string, recording Recording) {
 	recordingMap[recordingName] = recording
 }
 
@@ -176,99 +166,34 @@ func Open() io.Closer {
 		// with "_copyist".
 		fileName = fileName[:len(fileName)-8] + "_copyist_test.go"
 
-		return openForRecording(recordingName, fileName)
-	}
-	return openForPlayback(recordingName)
-}
-
-// findTestFileAndName searches the call stack, looking for the test that called
-// copyist.Open. Search up to N levels, looking for a file that ends in
-// "_test.go" and extract the function name from it. Return both the filename
-// and function name.
-func findTestFileAndName() (fileName, funcName string) {
-	const levels = 5
-	for i := 0; i < levels; i++ {
-		var pc uintptr
-		pc, fileName, _, _ = runtime.Caller(2 + i)
-		if strings.HasSuffix(fileName, "_test.go") {
-			// Extract package name from calling function name.
-			funcName = runtime.FuncForPC(pc).Name()
-			return fileName, funcName
-		}
-	}
-	panic(fmt.Sprintf("Open was not called directly or indirectly from a test file"))
-}
-
-func openForRecording(recordingName, fileName string) io.Closer {
-	// Invoke resetDB callback, if defined.
-	if registered.resetDB != nil {
-		registered.resetDB()
-	}
-
-	// Clear any pooled connection in order to ensure determinism. For more
-	// information, see the proxyDriver comment regarding connection pooling.
-	registered.clearPooledConnection()
-
-	// Reset recording (including any recording that occurred during the
-	// database reset).
-	registered.recording = []Record{}
-	registered.index = 0
-
-	// If recording file has not yet been created, do so now.
-	ensureRecordingFile(recordingName, fileName)
-
-	// Parse the file as Go code and produce an AST.
-	fset := token.NewFileSet()
-	sqlAst, err := parser.ParseFile(fset, fileName, nil, 0)
-	if err != nil {
-		panic(fmt.Sprintf("error parsing sql file: %v", err))
-	}
-
-	// Look for an existing AddRecording call in the init method, and remove it,
-	// since it will be replaced with this new recording.
-	initFn := updateInit(sqlAst, recordingName)
-	if initFn == nil {
-		panic(fmt.Sprintf("init function could not be found in recording file: %s", fileName))
-	}
-
-	// Once the recording session has been closed, construct a new AddRecording
-	// call and add it to the body of the init function.
-	return closer(func() error {
-		// Construct the new AddRecording call and add it to the init function's
-		// body.
-		addRecordingCall := &ast.ExprStmt{X: &ast.CallExpr{
-			Fun: constructQName("copyist", "AddRecording"),
-			Args: []ast.Expr{
-				constructStringLiteral(recordingName),
-				constructRecordingAst(registered.recording),
-			},
-		}}
-		initFn.Body.List = append(initFn.Body.List, addRecordingCall)
-
-		// Format the AST as Go code. Write to buffer first, since errors would
-		// otherwise cause WriteFile to clear the file.
-		var buf bytes.Buffer
-		if err = format.Node(&buf, fset, sqlAst); err != nil {
-			panic(fmt.Sprintf("error printing sql AST: %v", err))
+		// Invoke resetDB callback, if defined.
+		if registered.resetDB != nil {
+			registered.resetDB()
 		}
 
-		// If testOut is defined, redirect output there instead of file.
-		if testOut != nil {
-			testOut.Write(buf.Bytes())
-		} else {
-			err := ioutil.WriteFile(fileName, buf.Bytes(), 0666)
-			if err != nil {
-				panic(fmt.Sprintf("error writing modified sql file: %v", err))
-			}
-		}
+		// Clear any pooled connection in order to ensure determinism. For more
+		// information, see the proxyDriver comment regarding connection
+		// pooling. Call this after resetDB, in case developer is using copyist
+		// during the reset process (they shouldn't, but better to behave better
+		// if they do).
+		registered.clearPooledConnection()
 
-		registered.recording = nil
+		// Reset recording (including any recording that occurred during the
+		// database reset).
+		registered.recording = Recording{}
+		registered.index = 0
 
-		return nil
-	})
-}
+		// Once the recording session has been closed, construct a new AddRecording
+		// call and add it to the body of the init function.
+		return closer(func() error {
+			generateRecordingFile(registered.recording, recordingName, fileName)
 
-func openForPlayback(recordingName string) io.Closer {
+			registered.recording = nil
+
+			return nil
+		})
+	}
+
 	recording, ok := recordingMap[recordingName]
 	if !ok {
 		panic(fmt.Sprintf("no recording exists with this name: %v", recordingName))
@@ -290,124 +215,22 @@ func openForPlayback(recordingName string) io.Closer {
 	})
 }
 
-// ensureRecordingFile creates a recording file if one does not yet exist and
-// writes a "skeleton" init function into that file.
-func ensureRecordingFile(recordingName, fileName string) {
-	if _, err := os.Stat(fileName); os.IsNotExist(err) {
-		// It's very difficult to determine if a particular import is used, so
-		// just include them all.
-		pkgName := extractPackageName(recordingName)
-		goCode := fmt.Sprintf(initSkeleton, pkgName)
-		err = ioutil.WriteFile(fileName, []byte(goCode), 0666)
-		if err != nil {
-			panic(fmt.Sprintf("error writing initial sql file: %v", err))
+// findTestFileAndName searches the call stack, looking for the test that called
+// copyist.Open. Search up to N levels, looking for a file that ends in
+// "_test.go" and extract the function name from it. Return both the filename
+// and function name.
+func findTestFileAndName() (fileName, funcName string) {
+	const levels = 5
+	for i := 0; i < levels; i++ {
+		var pc uintptr
+		pc, fileName, _, _ = runtime.Caller(2 + i)
+		if strings.HasSuffix(fileName, "_test.go") {
+			// Extract package name from calling function name.
+			funcName = runtime.FuncForPC(pc).Name()
+			return fileName, funcName
 		}
 	}
-}
-
-// updateInit looks for an init method in the given AST, and then, within that
-// method, for an AddRecording call having a matching recording name as its
-// first argument. updateInit removes that method and returns the init function
-// it found. This is the pattern:
-//
-//   func init() {
-//     copyist.AddRecording("<recordingName1>", []copyist.Record{...})
-//     copyist.AddRecording("<recordingName2>", []copyist.Record{...})
-//     ...
-//   }
-//
-func updateInit(sqlAst *ast.File, recordingName string) *ast.FuncDecl {
-	var initFn *ast.FuncDecl
-	for _, decl := range sqlAst.Decls {
-		// Find init function.
-		var ok bool
-		initFn, ok = decl.(*ast.FuncDecl)
-		if !ok || initFn.Name.Name != "init" {
-			continue
-		}
-
-		// Find AddRecording call with first parameter that matches
-		// recordingName.
-		quotedRecordingName := fmt.Sprintf("`%s`", recordingName)
-		for i, stmt := range initFn.Body.List {
-			expr, ok := stmt.(*ast.ExprStmt)
-			if !ok {
-				continue
-			}
-			addCall, ok := expr.X.(*ast.CallExpr)
-			if !ok || len(addCall.Args) != 2 {
-				continue
-			}
-
-			lit, ok := addCall.Args[0].(*ast.BasicLit)
-			if !ok || lit.Kind != token.STRING || lit.Value != quotedRecordingName {
-				continue
-			}
-
-			// Remove AddRecording call from list.
-			initFn.Body.List = append(initFn.Body.List[:i], initFn.Body.List[i+1:]...)
-			break
-		}
-
-		break
-	}
-
-	return initFn
-}
-
-// constructRecordingAst creates an AST expression that constructs the given
-// recording as a Go literal. For example:
-//
-//   []copyist.Record{{Typ: copyist.DriverOpen, Args: copyist.RecordArgs{...}}}
-//
-func constructRecordingAst(recording []Record) ast.Expr {
-	// []copyist.Record{}
-	recordingAst := &ast.CompositeLit{
-		Type: &ast.ArrayType{Elt: constructQName("copyist", "Record")},
-	}
-
-	// Construct AST expression for each record in the list.
-	for _, record := range recording {
-		var args []ast.Expr
-		for _, arg := range record.Args {
-			args = append(args, constructValueAst(arg))
-		}
-
-		// {Typ: "copyist.RecordType", Args: copyist.RecordArgs{...}}
-		recordAst := &ast.CompositeLit{Elts: []ast.Expr{
-			&ast.KeyValueExpr{
-				Key:   &ast.Ident{Name: "Typ"},
-				Value: constructQName("copyist", record.Typ.String()),
-			},
-			&ast.KeyValueExpr{
-				Key: &ast.Ident{Name: "Args"},
-				Value: &ast.CompositeLit{
-					Type: constructQName("copyist", "RecordArgs"),
-					Elts: args,
-				},
-			},
-		}}
-
-		recordingAst.Elts = append(recordingAst.Elts, recordAst)
-	}
-	return recordingAst
-}
-
-func constructQName(qualifier, name string) *ast.SelectorExpr {
-	return &ast.SelectorExpr{X: &ast.Ident{Name: qualifier}, Sel: &ast.Ident{Name: name}}
-}
-
-// extractPackageName returns the package component of a function name returned
-// by FuncForPC in this format:
-//
-//   github.com/cockroachlabs/managed-service/copyist/cmd.TestFoo.func1
-//
-// The package name is the last component in the "/" path.
-func extractPackageName(funcName string) string {
-	start := strings.LastIndex(funcName, "/")
-	pkgName := funcName[start+1:]
-	end := strings.Index(pkgName, ".")
-	return pkgName[:end]
+	panic(fmt.Sprintf("Open was not called directly or indirectly from a test file"))
 }
 
 // copyistDriverName constructs the copyist wrapper driver's name as a function
@@ -415,23 +238,3 @@ func extractPackageName(funcName string) string {
 func copyistDriverName(driverName string) string {
 	return "copyist_" + driverName
 }
-
-var initSkeleton = `package %s
-
-import (
-	"database/sql/driver"
-	"errors"
-	"io"
-	"time"
-
-	"github.com/cockroachdb/copyist"
-)
-
-var _ = driver.ErrBadConn
-var _ = io.EOF
-var _ = time.Parse
-var _ = copyist.Register
-var _ = errors.New
-
-func init() {}
-`

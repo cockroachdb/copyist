@@ -29,7 +29,8 @@ type proxyTx struct {
 func (t *proxyTx) Commit() error {
 	if t.driver.isRecording() {
 		err := t.tx.Commit()
-		t.driver.recording = append(t.driver.recording, Record{Typ: TxCommit, Args: RecordArgs{err}})
+		t.driver.recording =
+			append(t.driver.recording, &Record{Typ: TxCommit, Args: RecordArgs{err}})
 		return err
 	}
 
@@ -42,7 +43,8 @@ func (t *proxyTx) Commit() error {
 func (t *proxyTx) Rollback() error {
 	if t.driver.isRecording() {
 		err := t.tx.Rollback()
-		t.driver.recording = append(t.driver.recording, Record{Typ: TxRollback, Args: RecordArgs{err}})
+		t.driver.recording =
+			append(t.driver.recording, &Record{Typ: TxRollback, Args: RecordArgs{err}})
 		return err
 	}
 
