@@ -48,8 +48,9 @@ type dataTypes struct {
 	s, d, fa string
 	tmz, tm  time.Time
 	b        bool
-	by       []uint8
+	by       []byte
 	f        float64
+	u        []byte
 }
 
 // TestMain registers a copyist driver and starts up a CRDB docker instance if
@@ -155,16 +156,16 @@ func TestDataTypes(t *testing.T) {
 	res, err := db.Exec(`
 		CREATE TABLE datatypes
 		(i INT, s TEXT, tz TIMESTAMPTZ, t TIMESTAMP, b BOOL,
-		 by BYTES, f FLOAT, d DECIMAL, fa FLOAT[])
+		 by BYTES, f FLOAT, d DECIMAL, fa FLOAT[], u UUID)
 	`)
 	require.NoError(t, err)
 
 	_, err = db.Exec(`
 		INSERT INTO datatypes VALUES
 			(1, 'foo', '2000-01-01T10:00:00Z', '2000-01-01T10:00:00Z', true,
-			 'ABCD', 1.1, 100.1234, ARRAY(1.1, 2.2)),
+			 'ABCD', 1.1, 100.1234, ARRAY(1.1, 2.2), '8B78978B-7D8B-489E-8CA9-AC4BDC495A82'),
 			(2, '', '2000-02-02T11:11:11-08:00', '2000-02-02T11:11:11-08:00', false,
-			 '', -1e10, -0.0, ARRAY())
+			 '', -1e10, -0.0, ARRAY(), '00000000-0000-0000-0000-000000000000')
 	`)
 	require.NoError(t, err)
 
@@ -173,25 +174,27 @@ func TestDataTypes(t *testing.T) {
 	require.Equal(t, int64(0), affected)
 
 	var out dataTypes
-	rows, err := db.Query("SELECT i, s, tz, t, b, by, f, d, fa FROM datatypes")
+	rows, err := db.Query("SELECT i, s, tz, t, b, by, f, d, fa, u FROM datatypes")
 	require.NoError(t, err)
 
 	rows.Next()
-	require.NoError(
-		t, rows.Scan(&out.i, &out.s, &out.tmz, &out.tm, &out.b, &out.by, &out.f, &out.d, &out.fa))
+	require.NoError(t, rows.Scan(
+		&out.i, &out.s, &out.tmz, &out.tm, &out.b, &out.by, &out.f, &out.d, &out.fa, &out.u))
 	require.Equal(t, dataTypes{
 		i: 1, s: "foo", tmz: copyist.ParseTime("2000-01-01T10:00:00Z"),
 		tm: copyist.ParseTime("2000-01-01T10:00:00+00:00"), b: true,
 		by: []byte{'A', 'B', 'C', 'D'}, f: 1.1, d: "100.1234", fa: "{1.1,2.2}",
+		u: []byte("8b78978b-7d8b-489e-8ca9-ac4bdc495a82"),
 	}, out)
 
 	rows.Next()
-	require.NoError(
-		t, rows.Scan(&out.i, &out.s, &out.tmz, &out.tm, &out.b, &out.by, &out.f, &out.d, &out.fa))
+	require.NoError(t, rows.Scan(
+		&out.i, &out.s, &out.tmz, &out.tm, &out.b, &out.by, &out.f, &out.d, &out.fa, &out.u))
 	require.Equal(t, dataTypes{
 		i: 2, s: "", tmz: copyist.ParseTime("2000-02-02T19:11:11Z"),
 		tm: copyist.ParseTime("2000-02-02T11:11:11+00:00"), b: false,
 		by: []byte{}, f: -1e10, d: "0.0", fa: "{}",
+		u: []byte("00000000-0000-0000-0000-000000000000"),
 	}, out)
 
 	rows.Close()

@@ -16,6 +16,7 @@ package copyist
 
 import (
 	"database/sql/driver"
+	"encoding/base64"
 	"fmt"
 	"go/ast"
 	"go/token"
@@ -25,10 +26,24 @@ import (
 	"time"
 )
 
-// ParseTime is a helper used by generated copyist code to parse time strings.
+// ParseTime is a helper used by generated copyist code to parse time strings
+// that were originally created by copyist.
 func ParseTime(s string) time.Time {
-	t, _ := time.Parse(time.RFC3339Nano, s)
+	t, err := time.Parse(time.RFC3339Nano, s)
+	if err != nil {
+		panic("copyist-encoded time value should never fail to parse")
+	}
 	return t
+}
+
+// ParseBase64 is a helper used by generated copyist code parse base64 strings
+// that were originally created by copyist.
+func ParseBase64(b64 string) []byte {
+	b, err := base64.RawStdEncoding.DecodeString(b64)
+	if err != nil {
+		panic("copyist-encoded base64 value should never fail to parse")
+	}
+	return b
 }
 
 // deepCopyValue makes a deep copy of the given value. It is used to ensure that
@@ -108,14 +123,11 @@ func constructValueAst(val interface{}) ast.Expr {
 			Type: &ast.ArrayType{Elt: &ast.Ident{Name: "string"}},
 			Elts: elts,
 		}
-	case []uint8:
-		var elts []ast.Expr
-		for _, b := range t {
-			elts = append(elts, constructIntLiteral(int(b)))
-		}
-		return &ast.CompositeLit{
-			Type: &ast.ArrayType{Elt: &ast.Ident{Name: "uint8"}},
-			Elts: elts,
+	case []byte:
+		s := base64.RawStdEncoding.EncodeToString(t)
+		return &ast.CallExpr{
+			Fun:  constructQName("copyist", "ParseBase64"),
+			Args: []ast.Expr{constructStringLiteral(s)},
 		}
 	case []driver.Value:
 		var elts []ast.Expr
