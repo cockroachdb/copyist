@@ -192,21 +192,12 @@ func (g *recordingGen) constructNewRecordingFile() {
 		Name: &ast.Ident{Name: extractPackageName(g.recordingName)},
 	}
 
-	// Construct top-level imports based on an analysis of what's needed by the
-	// record declarations.
-	var helper importAnalyzer
-	imports := helper.FindNeededImports(g.recordDecls)
-	if imports != nil {
-		file.Decls = append(file.Decls, &ast.GenDecl{Tok: token.IMPORT, Specs: helper.imports})
-	}
-
 	// Construct top-level init function.
 	initFn := &ast.FuncDecl{
 		Name: &ast.Ident{Name: "init"},
 		Type: &ast.FuncType{},
 		Body: &ast.BlockStmt{},
 	}
-	file.Decls = append(file.Decls, initFn)
 
 	// Determine which record declarations are actually used, and then generate
 	// those declarations in the init body.
@@ -218,6 +209,15 @@ func (g *recordingGen) constructNewRecordingFile() {
 	// Add sorted list of AddRecording calls.
 	addRecordingCalls := g.sortAddRecordingCalls()
 	initFn.Body.List = append(initFn.Body.List, addRecordingCalls...)
+
+	// Construct top-level imports based on an analysis of what's needed by the
+	// record declarations.
+	var helper importAnalyzer
+	imports := helper.FindNeededImports(usedDecls)
+	if imports != nil {
+		file.Decls = append(file.Decls, &ast.GenDecl{Tok: token.IMPORT, Specs: helper.imports})
+	}
+	file.Decls = append(file.Decls, initFn)
 
 	// Write out AST as copyist test file.
 	writeAstToFile(file, g.fileName)
@@ -370,7 +370,7 @@ type importAnalyzer struct {
 
 // FindNeededImports walks the given record declarations and determines the set
 // of imports that will be needed in the generated code.
-func (d *importAnalyzer) FindNeededImports(recordDecls map[hashValue]*ast.AssignStmt) []ast.Spec {
+func (d *importAnalyzer) FindNeededImports(recordDecls []*ast.AssignStmt) []ast.Spec {
 	// Always add copyist import.
 	d.imports = append(d.imports, &ast.ImportSpec{
 		Path: constructStringLiteral("github.com/cockroachdb/copyist"),

@@ -47,8 +47,8 @@ func init() {
 	r28 := &copyist.Record{copyist.TxRollback, copyist.RecordArgs{nil}}
 	r29 := &copyist.Record{copyist.ConnPrepare, copyist.RecordArgs{`SHOW session_id`, nil}}
 	r30 := &copyist.Record{copyist.RowsColumns, copyist.RecordArgs{[]string{`session_id`}}}
-	r31 := &copyist.Record{copyist.RowsNext, copyist.RecordArgs{[]driver.Value{`161fa2b0fcd8c6a80000000000000001`}, nil}}
-	r32 := &copyist.Record{copyist.RowsNext, copyist.RecordArgs{[]driver.Value{`161fa2b1058294140000000000000001`}, nil}}
+	r31 := &copyist.Record{copyist.RowsNext, copyist.RecordArgs{[]driver.Value{`161fb2899f90bf440000000000000001`}, nil}}
+	r32 := &copyist.Record{copyist.RowsNext, copyist.RecordArgs{[]driver.Value{`161fb289a8af74d00000000000000001`}, nil}}
 	r33 := &copyist.Record{copyist.ConnPrepare, copyist.RecordArgs{`SELECT name FROM customers WHERE id=?`, nil}}
 	copyist.AddRecording(`postgres/github.com/cockroachdb/copyist/pqtest_test.TestDataTypes`, copyist.Recording{r1, r16, r13, r10, r17, r13, r10, r18, r19, r13, r4, r20, r21, r22})
 	copyist.AddRecording(`postgres/github.com/cockroachdb/copyist/pqtest_test.TestFloatLiterals.func1`, copyist.Recording{r1, r23, r13, r4, r24, r25})
