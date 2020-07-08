@@ -130,12 +130,8 @@ func (g *recordingGen) analyzeExistingRecordingFile() {
 		for _, stmt := range initFn.Body.List {
 			switch t := stmt.(type) {
 			case *ast.AssignStmt:
-				// Record declaration.
-				hash := g.hasher.HashAstNode(t.Rhs[0])
-				g.recordDecls[hash] = t
-
-				// Determine any unused record declaration names so they can be
-				// reused.
+				// Record declaration. Determine any unused record declaration
+				// names so they can be reused.
 				declName := t.Lhs[0].(*ast.Ident).Name
 				declNum, err := strconv.Atoi(declName[1:])
 				if err != nil {
@@ -144,6 +140,14 @@ func (g *recordingGen) analyzeExistingRecordingFile() {
 				if declNum < g.nextNum {
 					panic("record declarations not sorted")
 				}
+
+				// Hash the record declaration.
+				hash := g.hasher.HashAstNode(t.Rhs[0])
+				if existing, ok := g.recordDecls[hash]; ok {
+					panic(fmt.Sprintf("record %s should not have the same hash as %s",
+						declName, existing.Lhs[0].(*ast.Ident).Name))
+				}
+				g.recordDecls[hash] = t
 
 				// Update the freeNums list with any unused record declaration
 				// numbers so they can be reused.

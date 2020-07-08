@@ -158,7 +158,14 @@ func constructIntLiteral(val int) *ast.BasicLit {
 }
 
 func constructFloatLiteral(val float64) *ast.BasicLit {
-	return &ast.BasicLit{Kind: token.FLOAT, Value: strconv.FormatFloat(val, 'g', 19, 64)}
+	// Ensure that a floating point number without a fractional part will not be
+	// interpreted as an integer when it is constructed by adding a trailing "."
+	// character when there is no fractional part of exponent.
+	s := strconv.FormatFloat(val, 'g', -1, 64)
+	if !strings.ContainsAny(s, ".e") {
+		s = s + "."
+	}
+	return &ast.BasicLit{Kind: token.FLOAT, Value: s}
 }
 
 func constructStringLiteral(val string) *ast.BasicLit {

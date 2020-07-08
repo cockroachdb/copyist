@@ -200,6 +200,35 @@ func TestDataTypes(t *testing.T) {
 	rows.Close()
 }
 
+// TestFloatLiterals tests the generation of float literal values, with and
+// without fractions and exponents.
+func TestFloatLiterals(t *testing.T) {
+	// Run twice in order to regress problem with float roundtripping.
+	t.Run("run 1", func(t *testing.T) {
+		defer copyist.Open().Close()
+
+		// Open database.
+		db, err := sql.Open("copyist_postgres", dataSourceName)
+		require.NoError(t, err)
+
+		rows, err := db.Query("SELECT 1::float, 1.1::float, 1e20::float")
+		require.NoError(t, err)
+		rows.Next()
+	})
+
+	t.Run("run 2", func(t *testing.T) {
+		defer copyist.Open().Close()
+
+		// Open database.
+		db, err := sql.Open("copyist_postgres", dataSourceName)
+		require.NoError(t, err)
+
+		rows, err := db.Query("SELECT 1::float, 1.1::float, 1e20::float")
+		require.NoError(t, err)
+		rows.Next()
+	})
+}
+
 // TestTxns commits and aborts transactions.
 func TestTxns(t *testing.T) {
 	defer copyist.Open().Close()
