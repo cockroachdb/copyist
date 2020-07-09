@@ -81,7 +81,7 @@ func TestQueryName(t *testing.T) {
 }
 ```
 In your `TestMain` function (or any other place that gets called before any of
-tests), call the `copyist.Register` function. This function registers a new
+the tests), call the `copyist.Register` function. This function registers a new
 driver with Go's `sql` package with the name `copyist_<driverName>`. In any
 tests you'd like to record, add a `defer copyist.Open().Close()` statement.
 This statement begins a new recording session, and then generates playback code
