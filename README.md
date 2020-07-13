@@ -19,7 +19,7 @@ package.
 ## What problems does copyist solve?
 Imagine you have some application code that opens a connection to a Postgres
 database and queries some customer data:
-```
+```go
 func QueryName(db *sql.DB) string {
 	rows, _ := db.Query("SELECT name FROM customers WHERE id=$1", 100)
 	defer rows.Close()
@@ -61,7 +61,7 @@ was using the database.
 ## How do I use copyist?
 Below is the recommended test pattern for using copyist. The example shows how
 to unit test the `QueryName` function shown above. 
-```
+```go
 func TestMain(m *testing.M) {
 	flag.Parse()
 	copyist.Register("postgres", resetDB)
@@ -138,7 +138,7 @@ tests aren't expecting the extra call.
 The solution to these problems is to eliminate the non-determinism. For example,
 in the case of an ORM sending a setup query, initialize it from your `TestMain`
 method:
-```
+```go
 func TestMain(m *testing.M) {
 	flag.Parse()
 	copyist.Register("postgres", resetDB)
