@@ -107,7 +107,7 @@ It should now run significantly faster.
 ## How do I reset the database between tests?
 The above section glossed over an important detail. When registering a driver
 for use with copyist, the second argument to `Register` is a callback function:
-```
+```go
 copyist.Register("postgres", resetDB)
 ``` 
 If non-nil, this function will be called by copyist each time you call
