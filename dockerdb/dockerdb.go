@@ -16,6 +16,7 @@ package dockerdb
 
 import (
 	"database/sql"
+	"errors"
 	"io"
 	"log"
 	"os/exec"
@@ -82,8 +83,8 @@ func waitForDB(driverName, dataSourceName string) {
 				return
 			}
 		}
-		log.Printf("waited %d seconds for database to start...", (i + 1) * 5)
+		log.Printf("waited %d seconds for database to start...", (i+1)*5)
 	}
 
-	panic("database did not start up within 60 seconds")
+	panic(errors.New("database did not start up within 60 seconds"))
 }

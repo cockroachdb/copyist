@@ -17,6 +17,7 @@ package copyist
 import (
 	"database/sql/driver"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/token"
@@ -31,7 +32,7 @@ import (
 func ParseTime(s string) time.Time {
 	t, err := time.Parse(time.RFC3339Nano, s)
 	if err != nil {
-		panic("copyist-encoded time value should never fail to parse")
+		panic(errors.New("copyist-encoded time value should never fail to parse"))
 	}
 	return t
 }
@@ -41,7 +42,7 @@ func ParseTime(s string) time.Time {
 func ParseBase64(b64 string) []byte {
 	b, err := base64.RawStdEncoding.DecodeString(b64)
 	if err != nil {
-		panic("copyist-encoded base64 value should never fail to parse")
+		panic(errors.New("copyist-encoded base64 value should never fail to parse"))
 	}
 	return b
 }
@@ -70,7 +71,7 @@ func deepCopyValue(val interface{}) interface{} {
 		}
 		return newValues
 	default:
-		panic(fmt.Sprintf("unsupported type: %T", t))
+		panic(fmt.Errorf("unsupported type: %T", t))
 	}
 }
 
@@ -149,7 +150,7 @@ func constructValueAst(val interface{}) ast.Expr {
 	case nil:
 		return &ast.Ident{Name: "nil"}
 	default:
-		panic(fmt.Sprintf("unsupported type: %T", t))
+		panic(fmt.Errorf("unsupported type: %T", t))
 	}
 }
 

@@ -16,6 +16,7 @@ package copyist
 
 import (
 	"database/sql"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -101,7 +102,7 @@ func AddRecording(recordingName string, recording Recording) {
 // was used during recording.
 func Register(driverName string, resetDB ResetCallback) {
 	if registered != nil {
-		panic("Register cannot be called more than once")
+		panic(errors.New("Register cannot be called more than once"))
 	}
 
 	registered = &proxyDriver{resetDB: resetDB, driverName: driverName}
@@ -136,7 +137,7 @@ func Register(driverName string, resetDB ResetCallback) {
 // executed independently.
 func Open() io.Closer {
 	if registered == nil {
-		panic("Register was not called")
+		panic(errors.New("Register was not called"))
 	}
 
 	// Get name and path of calling test function.
@@ -180,7 +181,7 @@ func Open() io.Closer {
 
 	recording, ok := recordingMap[recordingName]
 	if !ok {
-		panic(fmt.Sprintf("no recording exists with this name: %v", recordingName))
+		panic(fmt.Errorf("no recording exists with this name: %v", recordingName))
 	}
 
 	// Clear any pooled connection in order to ensure determinism. For more
@@ -214,7 +215,7 @@ func findTestFileAndName() (fileName, funcName string) {
 			return fileName, funcName
 		}
 	}
-	panic(fmt.Sprintf("Open was not called directly or indirectly from a test file"))
+	panic(fmt.Errorf("Open was not called directly or indirectly from a test file"))
 }
 
 // copyistDriverName constructs the copyist wrapper driver's name as a function

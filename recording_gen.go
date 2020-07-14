@@ -16,6 +16,7 @@ package copyist
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/format"
@@ -135,16 +136,16 @@ func (g *recordingGen) analyzeExistingRecordingFile() {
 				declName := t.Lhs[0].(*ast.Ident).Name
 				declNum, err := strconv.Atoi(declName[1:])
 				if err != nil {
-					panic(fmt.Sprintf("invalid assignment format: %v", declName))
+					panic(fmt.Errorf("invalid assignment format: %v", declName))
 				}
 				if declNum < g.nextNum {
-					panic("record declarations not sorted")
+					panic(errors.New("record declarations not sorted"))
 				}
 
 				// Hash the record declaration.
 				hash := g.hasher.HashAstNode(t.Rhs[0])
 				if existing, ok := g.recordDecls[hash]; ok {
-					panic(fmt.Sprintf("record %s should not have the same hash as %s",
+					panic(fmt.Errorf("record %s should not have the same hash as %s",
 						declName, existing.Lhs[0].(*ast.Ident).Name))
 				}
 				g.recordDecls[hash] = t
@@ -326,7 +327,7 @@ func (g *recordingGen) findUsedRecordDecls() []*ast.AssignStmt {
 			argName := elt.(*ast.Ident).Name
 			argNum, err := strconv.Atoi(argName[1:])
 			if err != nil {
-				panic(fmt.Sprintf("invalid reference to record: %s", argName))
+				panic(fmt.Errorf("invalid reference to record: %s", argName))
 			}
 			usedDecls[argNum-1] = recordDeclsByName[argName]
 		}
@@ -431,7 +432,7 @@ func readAstFromFile(fileName string) *ast.File {
 
 	ast, err := parser.ParseFile(token.NewFileSet(), fileName, nil, 0)
 	if err != nil {
-		panic(fmt.Sprintf("error parsing copyist-generated sql file: %v", err))
+		panic(fmt.Errorf("error parsing copyist-generated sql file: %v", err))
 	}
 	return ast
 }
@@ -442,12 +443,12 @@ func writeAstToFile(ast *ast.File, fileName string) {
 	// otherwise cause WriteFile to clear the file.
 	var buf bytes.Buffer
 	if err := format.Node(&buf, token.NewFileSet(), ast); err != nil {
-		panic(fmt.Sprintf("error printing sql AST: %v", err))
+		panic(fmt.Errorf("error printing sql AST: %v", err))
 	}
 
 	err := ioutil.WriteFile(fileName, buf.Bytes(), 0666)
 	if err != nil {
-		panic(fmt.Sprintf("error writing modified sql file: %v", err))
+		panic(fmt.Errorf("error writing modified sql file: %v", err))
 	}
 }
 

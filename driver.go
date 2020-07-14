@@ -20,6 +20,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"errors"
 	"fmt"
 )
 
@@ -227,15 +228,15 @@ func (d *proxyDriver) clearPooledConnection() {
 // error if no such record exists.
 func (d *proxyDriver) verifyRecord(recordTyp RecordType) *Record {
 	if d.recording == nil {
-		panic("copyist.Open was never called")
+		panic(errors.New("copyist.Open was never called"))
 	}
 
 	if d.index >= len(d.recording) {
-		panic(fmt.Sprintf("too many calls to %s - regenerate recording", recordTyp.String()))
+		panic(fmt.Errorf("too many calls to %s - regenerate recording", recordTyp.String()))
 	}
 	record := d.recording[d.index]
 	if record.Typ != recordTyp {
-		panic(fmt.Sprintf("unexpected call to %s - regenerate recording", recordTyp.String()))
+		panic(fmt.Errorf("unexpected call to %s - regenerate recording", recordTyp.String()))
 	}
 	d.index++
 	return record
@@ -247,7 +248,7 @@ func (d *proxyDriver) verifyRecord(recordTyp RecordType) *Record {
 func (d *proxyDriver) verifyRecordWithStringArg(recordTyp RecordType, arg string) *Record {
 	record := d.verifyRecord(recordTyp)
 	if record.Args[0].(string) != arg {
-		panic(fmt.Sprintf("mismatched argument to %s, expected %s, got %s - regenerate recording",
+		panic(fmt.Errorf("mismatched argument to %s, expected %s, got %s - regenerate recording",
 			recordTyp.String(), arg, record.Args[0].(string)))
 	}
 	return record
