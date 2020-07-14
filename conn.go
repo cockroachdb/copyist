@@ -70,7 +70,7 @@ func (c *proxyConn) ResetSession(ctx context.Context) error {
 
 // Prepare returns a prepared statement, bound to this connection.
 func (c *proxyConn) Prepare(query string) (driver.Stmt, error) {
-	if c.driver.isRecording() {
+	if IsRecording() {
 		// TODO(andyk): This is a hack that works around problems with the sqlx
 		// library's named args. sqlx uses a hardcoded list of driver names to
 		// determine how to represent parameters in prepared queries. For
@@ -122,7 +122,7 @@ func (c *proxyConn) Close() error {
 	// Try to return the connection to the pool rather than closing it.
 	if !c.driver.tryPoolConnection(c) {
 		// Not successful, so close the connection.
-		if c.driver.isRecording() {
+		if IsRecording() {
 			return c.conn.Close()
 		}
 	}
@@ -133,7 +133,7 @@ func (c *proxyConn) Close() error {
 //
 // Deprecated: Drivers should implement ConnBeginTx instead (or additionally).
 func (c *proxyConn) Begin() (driver.Tx, error) {
-	if c.driver.isRecording() {
+	if IsRecording() {
 		tx, err := c.conn.Begin()
 		c.driver.recording =
 			append(c.driver.recording, &Record{Typ: ConnBegin, Args: RecordArgs{err}})

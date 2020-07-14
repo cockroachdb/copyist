@@ -31,7 +31,7 @@ type proxyStmt struct {
 // As of Go 1.1, a Stmt will not be closed if it's in use
 // by any queries.
 func (s *proxyStmt) Close() error {
-	if s.driver.isRecording() {
+	if IsRecording() {
 		return s.stmt.Close()
 	}
 	return nil
@@ -47,7 +47,7 @@ func (s *proxyStmt) Close() error {
 // its number of placeholders. In that case, the sql package
 // will not sanity check Exec or Query argument counts.
 func (s *proxyStmt) NumInput() int {
-	if s.driver.isRecording() {
+	if IsRecording() {
 		num := s.stmt.NumInput()
 		s.driver.recording =
 			append(s.driver.recording, &Record{Typ: StmtNumInput, Args: RecordArgs{num}})
@@ -63,7 +63,7 @@ func (s *proxyStmt) NumInput() int {
 //
 // Deprecated: Drivers should implement StmtExecContext instead (or additionally).
 func (s *proxyStmt) Exec(args []driver.Value) (driver.Result, error) {
-	if s.driver.isRecording() {
+	if IsRecording() {
 		res, err := s.stmt.Exec(args)
 		s.driver.recording =
 			append(s.driver.recording, &Record{Typ: StmtExec, Args: RecordArgs{err}})
@@ -86,7 +86,7 @@ func (s *proxyStmt) Exec(args []driver.Value) (driver.Result, error) {
 //
 // Deprecated: Drivers should implement StmtQueryContext instead (or additionally).
 func (s *proxyStmt) Query(args []driver.Value) (driver.Rows, error) {
-	if s.driver.isRecording() {
+	if IsRecording() {
 		rows, err := s.stmt.Query(args)
 		s.driver.recording =
 			append(s.driver.recording, &Record{Typ: StmtQuery, Args: RecordArgs{err}})

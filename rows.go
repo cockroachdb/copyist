@@ -30,7 +30,7 @@ type proxyRows struct {
 // slice. If a particular column name isn't known, an empty
 // string should be returned for that entry.
 func (r *proxyRows) Columns() []string {
-	if r.driver.isRecording() {
+	if IsRecording() {
 		cols := r.rows.Columns()
 		r.driver.recording = append(
 			r.driver.recording, &Record{Typ: RowsColumns, Args: RecordArgs{cols}})
@@ -43,7 +43,7 @@ func (r *proxyRows) Columns() []string {
 
 // Close closes the rows iterator.
 func (r *proxyRows) Close() error {
-	if r.driver.isRecording() {
+	if IsRecording() {
 		return r.rows.Close()
 	}
 	return nil
@@ -59,7 +59,7 @@ func (r *proxyRows) Close() error {
 // should be taken when closing Rows not to modify
 // a buffer held in dest.
 func (r *proxyRows) Next(dest []driver.Value) error {
-	if r.driver.isRecording() {
+	if IsRecording() {
 		var destCopy []driver.Value
 		err := r.rows.Next(dest)
 		if err == nil {

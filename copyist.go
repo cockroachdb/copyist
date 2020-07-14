@@ -16,7 +16,6 @@ package copyist
 
 import (
 	"database/sql"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -82,9 +81,12 @@ func AddRecording(recordingName string, recording Recording) {
 // name. Depending on the value of the "record" command-line flag, the
 // constructed proxy will either record calls to the wrapped driver, or else
 // play back calls that were previously recorded. Register must be called before
-// Open can be called, typically in a TestMain method or equivalent.
+// copyist.Open can be called, typically in an init() method. Note that the
+// wrapped driver is lazily fetched from the `sql` package, so if a driver of
+// that name does not exist, an error will not be raised until a connection is
+// opened for the first time.
 //
-// Register method takes the name of the SQL driver to be wrapped (e.g.
+// The Register method takes the name of the SQL driver to be wrapped (e.g.
 // "postgres"). The resetDB function (if defined) resets the database to a
 // clean, well-known state. It is only called in "recording" mode, each time
 // that copyist.Open is called by a test. There is no need to call it in
@@ -92,36 +94,20 @@ func AddRecording(recordingName string, recording Recording) {
 //
 // Below is an example of how copyist.Register should be invoked.
 //
-//   err := copyist.Register("postgres", resetDB)
+//   copyist.Register("postgres", resetDB)
 //
 // Note that Register can only be called once; subsequent attempts will fail
 // with an error. In addition, the same driver must be used with playback as was
 // was used during recording.
-func Register(driverName string, resetDB ResetCallback) error {
+func Register(driverName string, resetDB ResetCallback) {
 	if registered != nil {
-		return errors.New("Register cannot be called more than once")
+		panic("Register cannot be called more than once")
 	}
 
-	// Get the "real" driver that will be wrapped. Unfortunately, the sql
-	// package does not offer any good way to do this. Calling Open and then
-	// getting the driver from the DB object is a hacky workaround.
-	// TODO(andyk): any better way to do this? Calling Open will fail for
-	// drivers that immediately open a connection rather than doing it lazily.
-	db, err := sql.Open(driverName, "")
-	if err != nil {
-		return err
-	}
-	wrapped := db.Driver()
-	db.Close()
+	registered = &proxyDriver{resetDB: resetDB, driverName: driverName}
 
-	if IsRecording() {
-		registered = &proxyDriver{resetDB: resetDB, wrapped: wrapped, driverName: driverName}
-	} else {
-		registered = &proxyDriver{driverName: driverName}
-	}
+	// Register the copyist driver with the `sql` package.
 	sql.Register(copyistDriverName(driverName), registered)
-
-	return nil
 }
 
 // Open begins a recording or playback session, depending on the value of the
@@ -130,10 +116,8 @@ func Register(driverName string, resetDB ResetCallback) error {
 // sits alongside the calling test file. If playing back, then the recording
 // will be fetched from that generated file. Here is a typical calling pattern:
 //
-//   func TestMain(m *testing.M) {
-//     flag.Parse()
-//     copyist.Register("postgres")
-//     os.Exit(m.Run())
+//   func init() {
+//     copyist.Register("postgres", resetDB)
 //   }
 //
 //   func TestMyStuff(t *testing.T) {
@@ -158,14 +142,14 @@ func Open() io.Closer {
 	// Get name and path of calling test function.
 	fileName, funcName := findTestFileAndName()
 
+	// Construct the recording file name by prefixing the "_test" suffix
+	// with "_copyist".
+	fileName = fileName[:len(fileName)-8] + "_copyist_test.go"
+
 	// Synthesize the recording name by prepending the driver name.
 	recordingName := fmt.Sprintf("%s/%s", registered.driverName, funcName)
 
 	if IsRecording() {
-		// Construct the recording file name by prefixing the "_test" suffix
-		// with "_copyist".
-		fileName = fileName[:len(fileName)-8] + "_copyist_test.go"
-
 		// Invoke resetDB callback, if defined.
 		if registered.resetDB != nil {
 			registered.resetDB()

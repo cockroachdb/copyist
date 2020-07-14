@@ -53,6 +53,10 @@ type dataTypes struct {
 	u        []byte
 }
 
+func init() {
+	copyist.Register("postgres", resetDB)
+}
+
 // TestMain registers a copyist driver and starts up a CRDB docker instance if
 // in recording mode. To run the pq tests, follow these steps:
 //
@@ -72,8 +76,6 @@ func TestMain(m *testing.M) {
 	if copyist.IsRecording() {
 		closer = dockerdb.Start(dockerArgs, "postgres", dataSourceName)
 	}
-
-	copyist.Register("postgres", resetDB)
 
 	code := m.Run()
 

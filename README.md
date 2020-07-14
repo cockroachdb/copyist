@@ -62,10 +62,8 @@ was using the database.
 Below is the recommended test pattern for using copyist. The example shows how
 to unit test the `QueryName` function shown above. 
 ```go
-func TestMain(m *testing.M) {
-	flag.Parse()
+func init() {
 	copyist.Register("postgres", resetDB)
-	os.Exit(m.Run())
 }
 
 func TestQueryName(t *testing.T) {
@@ -80,12 +78,13 @@ func TestQueryName(t *testing.T) {
 	}
 }
 ```
-In your `TestMain` function (or any other place that gets called before any of
-the tests), call the `copyist.Register` function. This function registers a new
-driver with Go's `sql` package with the name `copyist_<driverName>`. In any
-tests you'd like to record, add a `defer copyist.Open().Close()` statement.
-This statement begins a new recording session, and then generates playback code
-when `Close` is called at the end of the test.
+In your `init` or `TestMain` function (or any other place that gets called
+before any of the tests), call the `copyist.Register` function. This function
+registers a new driver with Go's `sql` package with the name
+`copyist_<driverName>`. In any tests you'd like to record, add a
+`defer copyist.Open().Close()` statement. This statement begins a new recording
+session, and then generates playback code when `Close` is called at the end of
+the test.
 
 copyist does need to know whether to run in "recording" mode or "playback" mode.
 To make copyist run in "recording" mode, invoke the test with the `record` flag:
@@ -108,7 +107,9 @@ It should now run significantly faster.
 The above section glossed over an important detail. When registering a driver
 for use with copyist, the second argument to `Register` is a callback function:
 ```go
-copyist.Register("postgres", resetDB)
+func init() {
+    copyist.Register("postgres", resetDB)
+}
 ``` 
 If non-nil, this function will be called by copyist each time you call
 `copyist.Open` (typically at the beginning of each test), as long as copyist is
@@ -136,8 +137,8 @@ a different test first, you'll see the "unexpected call" error, since other
 tests aren't expecting the extra call.
 
 The solution to these problems is to eliminate the non-determinism. For example,
-in the case of an ORM sending a setup query, initialize it from your `TestMain`
-method:
+in the case of an ORM sending a setup query, you might initialize it from your
+`TestMain` method:
 ```go
 func TestMain(m *testing.M) {
 	flag.Parse()

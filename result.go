@@ -29,7 +29,7 @@ type proxyResult struct {
 // after, for example, an INSERT into a table with primary
 // key.
 func (r *proxyResult) LastInsertId() (int64, error) {
-	if r.driver.isRecording() {
+	if IsRecording() {
 		id, err := r.res.LastInsertId()
 		r.driver.recording = append(
 			r.driver.recording, &Record{Typ: ResultLastInsertId, Args: RecordArgs{id, err}})
@@ -47,7 +47,7 @@ func (r *proxyResult) LastInsertId() (int64, error) {
 // RowsAffected returns the number of rows affected by the
 // query.
 func (r *proxyResult) RowsAffected() (int64, error) {
-	if r.driver.isRecording() {
+	if IsRecording() {
 		affected, err := r.res.RowsAffected()
 		r.driver.recording = append(
 			r.driver.recording, &Record{Typ: ResultRowsAffected, Args: RecordArgs{affected, err}})

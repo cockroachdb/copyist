@@ -18,6 +18,7 @@ package copyist
 
 import (
 	"context"
+	"database/sql"
 	"database/sql/driver"
 	"fmt"
 )
@@ -138,7 +139,18 @@ func (d *proxyDriver) Open(name string) (driver.Conn, error) {
 		return conn, nil
 	}
 
-	if d.isRecording() {
+	if IsRecording() {
+		// Lazily get the wrapped driver.
+		if d.wrapped == nil {
+			// Open the database in order to get the sql.Driver object to wrap.
+			db, err := sql.Open(d.driverName, name)
+			if err != nil {
+				return nil, err
+			}
+			d.wrapped = db.Driver()
+			db.Close()
+		}
+
 		conn, err := d.wrapped.Open(name)
 		d.recording = append(d.recording, &Record{Typ: DriverOpen, Args: RecordArgs{err}})
 		if err != nil {
@@ -153,12 +165,6 @@ func (d *proxyDriver) Open(name string) (driver.Conn, error) {
 		return nil, err
 	}
 	return &proxyConn{driver: d, name: name, session: d.session}, nil
-}
-
-// isRecording is true if the driver is in recording mode, or false if in
-// playback mode.
-func (d *proxyDriver) isRecording() bool {
-	return d.wrapped != nil
 }
 
 // tryPoolConnection puts the given connection into the pool if:
