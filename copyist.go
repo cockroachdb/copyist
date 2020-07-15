@@ -148,6 +148,20 @@ func Open() io.Closer {
 	// subtests. This would require Open to take a testing.T parameter.
 	recordingName := funcName
 
+	return OpenNamed(fileName, recordingName)
+}
+
+// OpenNamed is a variant of Open which accepts a caller-specified fileName and
+// recordingName rather than deriving default values for them. The given
+// fileName will be used as the name of the output file containing the
+// recordings rather than the default "_copyist_test.txt" file. The given
+// recordingName will be used as the recording name in that file rather than
+// calculating the default name of "<testFunctionName>".
+func OpenNamed(fileName, recordingName string) io.Closer {
+	if registered == nil {
+		panic("Register was not called")
+	}
+
 	if IsRecording() {
 		// Invoke resetDB callback, if defined.
 		if registered.resetDB != nil {

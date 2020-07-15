@@ -1,0 +1,8 @@
+1=DriverOpen	1:nil
+2=ConnPrepare	2:"SELECT 1"	1:nil
+3=StmtNumInput	3:0
+4=StmtQuery	1:nil
+5=RowsColumns	9:["?column?"]
+6=RowsNext	11:[4:1]	1:nil
+
+"TestOpenNamed"=1,2,3,4,5,6

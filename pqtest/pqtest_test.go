@@ -352,6 +352,18 @@ func TestSqlx(t *testing.T) {
 	require.NoError(t, tx.Commit())
 }
 
+func TestOpenNamed(t *testing.T) {
+	defer copyist.OpenNamed("recording.txt", "TestOpenNamed").Close()
+
+	// Open database.
+	db, err := sql.Open("copyist_postgres", dataSourceName)
+	require.NoError(t, err)
+
+	rows, err := db.Query("SELECT 1")
+	require.NoError(t, err)
+	rows.Next()
+}
+
 func parseTime(s string) time.Time {
 	t, err := time.Parse(time.RFC3339Nano, s)
 	if err != nil {
