@@ -103,7 +103,8 @@ go test -run TestQueryName
 go test -run TestQueryName
 go test -run TestQueryName
 ```
-It should now run significantly faster. 
+It should now run significantly faster. You can also define the COPYIST_RECORD
+environment variable (to any value) to make copyist run in recording mode.
 
 ## How do I reset the database between tests?
 The above section glossed over an important detail. When registering a driver

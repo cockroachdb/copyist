@@ -17,6 +17,7 @@ package copyist
 import (
 	"database/sql"
 	"github.com/stretchr/testify/require"
+	"os"
 	"testing"
 )
 
@@ -73,6 +74,16 @@ func TestRecordingNotFound(t *testing.T) {
 		`no recording exists with this name: github.com/cockroachdb/copyist.TestRecordingNotFound.func2`,
 		func() { Open() },
 	)
+}
+
+// TestCopyistEnvVar tests that copyist respects the COPYIST_RECORD environment
+// variable.
+func TestCopyistEnvVar(t *testing.T) {
+	// Enter playback mode.
+	require.NoError(t, os.Setenv("COPYIST_RECORD", "TRUE"))
+	*recordFlag = false
+	visitedRecording = false
+	require.True(t, IsRecording())
 }
 
 func ignorePanic(f func()) {

@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 	"runtime"
 	"strings"
 )
@@ -42,7 +43,13 @@ func IsRecording() bool {
 			}
 		})
 		if !found {
-			*recordFlag = false
+			// If the record flag was not explicitly specified, then next check
+			// the value of the COPYIST_RECORD environment variable.
+			if os.Getenv("COPYIST_RECORD") != "" {
+				*recordFlag = true
+			} else {
+				*recordFlag = false
+			}
 		}
 		visitedRecording = true
 	}
