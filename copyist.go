@@ -24,9 +24,9 @@ import (
 	"strings"
 )
 
-// record instructs copyist to record all calls to the registered driver, if
+// recordFlag instructs copyist to record all calls to the registered driver, if
 // true. Otherwise, it plays back previously recorded calls.
-var record = flag.Bool("record", true, "record sql database accesses")
+var recordFlag = flag.Bool("record", true, "record sql database accesses")
 
 var visitedRecording bool
 
@@ -42,11 +42,11 @@ func IsRecording() bool {
 			}
 		})
 		if !found {
-			*record = false
+			*recordFlag = false
 		}
 		visitedRecording = true
 	}
-	return *record
+	return *recordFlag
 }
 
 // ResetCallback types a function that is invoked during each call to
@@ -66,17 +66,6 @@ func (c closer) Close() error {
 // registered is the proxy driver created during the registration process. It is
 // nil if Register has not yet been called.
 var registered *proxyDriver
-
-// recordingMap maps from driverName + funcName to the recording made for that
-// combination.
-var recordingMap = make(map[string]Recording)
-
-// AddRecording is called by the generated code to enter all the recordings into
-// the map as part of initialization. Those recordings can then be accessed for
-// playback.
-func AddRecording(recordingName string, recording Recording) {
-	recordingMap[recordingName] = recording
-}
 
 // Register constructs a proxy driver that wraps the "real" driver of the given
 // name. Depending on the value of the "record" command-line flag, the
@@ -113,9 +102,9 @@ func Register(driverName string, resetDB ResetCallback) {
 
 // Open begins a recording or playback session, depending on the value of the
 // "record" command-line flag. If recording, then all calls to the registered
-// driver will be recorded and then saved as Go code in a generated file that
-// sits alongside the calling test file. If playing back, then the recording
-// will be fetched from that generated file. Here is a typical calling pattern:
+// driver will be recorded and then saved in a copyist recording file that sits
+// alongside the calling test file. If playing back, then the recording will
+// be fetched from that recording file. Here is a typical calling pattern:
 //
 //   func init() {
 //     copyist.Register("postgres", resetDB)
@@ -145,10 +134,12 @@ func Open() io.Closer {
 
 	// Construct the recording file name by prefixing the "_test" suffix
 	// with "_copyist".
-	fileName = fileName[:len(fileName)-8] + "_copyist_test.go"
+	fileName = fileName[:len(fileName)-8] + "_copyist_test.txt"
 
-	// Synthesize the recording name by prepending the driver name.
-	recordingName := fmt.Sprintf("%s/%s", registered.driverName, funcName)
+	// The recording name is just the test function name.
+	// TODO(andyk): Consider appending testing.T test name in order to support
+	// subtests. This would require Open to take a testing.T parameter.
+	recordingName := funcName
 
 	if IsRecording() {
 		// Invoke resetDB callback, if defined.
@@ -165,22 +156,23 @@ func Open() io.Closer {
 
 		// Reset recording (including any recording that occurred during the
 		// database reset).
-		registered.recording = Recording{}
+		registered.recording = recording{}
 		registered.index = 0
 
 		// Once the recording session has been closed, construct a new AddRecording
 		// call and add it to the body of the init function.
 		return closer(func() error {
-			generateRecordingFile(registered.recording, recordingName, fileName)
-
+			f := parseRecordingFile(fileName)
+			f.AddRecording(recordingName, registered.recording)
+			f.WriteRecordingFile(fileName)
 			registered.recording = nil
-
 			return nil
 		})
 	}
 
-	recording, ok := recordingMap[recordingName]
-	if !ok {
+	f := parseRecordingFile(fileName)
+	recording := f.GetRecording(recordingName)
+	if recording == nil {
 		panic(fmt.Errorf("no recording exists with this name: %v", recordingName))
 	}
 

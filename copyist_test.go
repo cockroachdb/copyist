@@ -45,7 +45,7 @@ func TestMultipleRegisterCalls(t *testing.T) {
 // unknown driver name is passed to copyist.Register.
 func TestUnknownDriver(t *testing.T) {
 	// Force recording mode.
-	*record = true
+	*recordFlag = true
 	visitedRecording = true
 
 	registered = nil
@@ -61,7 +61,7 @@ func TestUnknownDriver(t *testing.T) {
 // recording that does not exist.
 func TestRecordingNotFound(t *testing.T) {
 	// Enter playback mode.
-	*record = false
+	*recordFlag = false
 	visitedRecording = true
 
 	// Ignore any panic on first call in case another test has already
@@ -70,30 +70,8 @@ func TestRecordingNotFound(t *testing.T) {
 	ignorePanic(func() { Register("postgres", nil) })
 	require.PanicsWithError(
 		t,
-		`no recording exists with this name: postgres/github.com/cockroachdb/copyist.TestRecordingNotFound.func2`,
+		`no recording exists with this name: github.com/cockroachdb/copyist.TestRecordingNotFound.func2`,
 		func() { Open() },
-	)
-}
-
-// TestTooManyCalls tests that copyist panics when trying to playback a
-// mismatched recording.
-func TestTooManyCalls(t *testing.T) {
-	// Enter playback mode and create a mismatched recording.
-	*record = false
-	visitedRecording = true
-	recordingMap["unknown/github.com/cockroachdb/copyist.TestTooManyCalls"] = Recording{}
-
-	// Ignore any panic on first call in case another test has already
-	// registered the postgres driver.
-	registered = nil
-	ignorePanic(func() { Register("unknown", nil) })
-	Open()
-	db, err := sql.Open("copyist_unknown", "")
-	require.NoError(t, err)
-	require.PanicsWithError(
-		t,
-		`too many calls to DriverOpen - regenerate recording`,
-		func() { db.Query("SELECT 1") },
 	)
 }
 

@@ -30,7 +30,7 @@ func (t *proxyTx) Commit() error {
 	if IsRecording() {
 		err := t.tx.Commit()
 		t.driver.recording =
-			append(t.driver.recording, &Record{Typ: TxCommit, Args: RecordArgs{err}})
+			append(t.driver.recording, &record{Typ: TxCommit, Args: recordArgs{err}})
 		return err
 	}
 
@@ -44,7 +44,7 @@ func (t *proxyTx) Rollback() error {
 	if IsRecording() {
 		err := t.tx.Rollback()
 		t.driver.recording =
-			append(t.driver.recording, &Record{Typ: TxRollback, Args: RecordArgs{err}})
+			append(t.driver.recording, &record{Typ: TxRollback, Args: recordArgs{err}})
 		return err
 	}
 

@@ -12,8 +12,6 @@
 // implied. See the License for the specific language governing
 // permissions and limitations under the License.
 
-//go:generate stringer -type=RecordType
-
 package copyist
 
 import (
@@ -24,49 +22,28 @@ import (
 	"fmt"
 )
 
-// RecordType identifies the SQL driver method that was called during the
-// recording process. It is stored as part of the Record struct, and is checked
-// during playback.
-type RecordType int32
-
-// This is a list of the event types, which correspond 1:1 with SQL driver
-// methods.
-const (
-	_ RecordType = iota
-	DriverOpen
-	ConnPrepare
-	ConnBegin
-	StmtNumInput
-	StmtExec
-	StmtQuery
-	TxCommit
-	TxRollback
-	ResultLastInsertId
-	ResultRowsAffected
-	RowsColumns
-	RowsNext
-)
-
-// RecordArgs is an untyped list of arguments and/or return values to/from a SQL
+// recordArgs is an untyped list of arguments and/or return values to/from a SQL
 // driver method that was called during the recording process. It is stored as
 // part of the Record struct that is stored, and is checked or returned during
 // playback.
-type RecordArgs []interface{}
+type recordArgs []interface{}
 
-// Record stores information for one SQL driver method that is called during the
+// record stores information for one SQL driver method that is called during the
 // recording process. During playback, this record provides the information
 // needed to verify the expected method is called, to check the right arguments
 // are passed, and to provide the return value(s) from the method.
-type Record struct {
+type record struct {
 	// Typ is the driver method that was called during the recording process.
-	Typ RecordType
+	Typ recordType
 
 	// Args are driver method arguments and/or return values that are needed for
 	// playback.
-	Args RecordArgs
+	Args recordArgs
 }
 
-type Recording []*Record
+// recording is a list of records that need to be played back in sequence during
+// one recording session.
+type recording []*record
 
 // proxyDriver records and plays back calls to driver.Driver methods.
 //
@@ -109,7 +86,7 @@ type proxyDriver struct {
 
 	// recording stores the calls made to the driver so they can be played back
 	// later.
-	recording Recording
+	recording recording
 
 	// index is the current offset into the recording slice. It is used only
 	// during playback mode.
@@ -153,7 +130,7 @@ func (d *proxyDriver) Open(name string) (driver.Conn, error) {
 		}
 
 		conn, err := d.wrapped.Open(name)
-		d.recording = append(d.recording, &Record{Typ: DriverOpen, Args: RecordArgs{err}})
+		d.recording = append(d.recording, &record{Typ: DriverOpen, Args: recordArgs{err}})
 		if err != nil {
 			return nil, err
 		}
@@ -226,7 +203,7 @@ func (d *proxyDriver) clearPooledConnection() {
 
 // verifyRecord returns one of the records in recording, failing with a nice
 // error if no such record exists.
-func (d *proxyDriver) verifyRecord(recordTyp RecordType) *Record {
+func (d *proxyDriver) verifyRecord(recordTyp recordType) *record {
 	if d.recording == nil {
 		panic(errors.New("copyist.Open was never called"))
 	}
@@ -245,7 +222,7 @@ func (d *proxyDriver) verifyRecord(recordTyp RecordType) *Record {
 // verifyRecordWithStringArg returns one of the records in recording, failing
 // with a nice error if no such record exists, or if its first argument does not
 // match the given string.
-func (d *proxyDriver) verifyRecordWithStringArg(recordTyp RecordType, arg string) *Record {
+func (d *proxyDriver) verifyRecordWithStringArg(recordTyp recordType, arg string) *record {
 	record := d.verifyRecord(recordTyp)
 	if record.Args[0].(string) != arg {
 		panic(fmt.Errorf("mismatched argument to %s, expected %s, got %s - regenerate recording",

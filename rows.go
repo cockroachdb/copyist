@@ -33,7 +33,7 @@ func (r *proxyRows) Columns() []string {
 	if IsRecording() {
 		cols := r.rows.Columns()
 		r.driver.recording = append(
-			r.driver.recording, &Record{Typ: RowsColumns, Args: RecordArgs{cols}})
+			r.driver.recording, &record{Typ: RowsColumns, Args: recordArgs{cols}})
 		return cols
 	}
 
@@ -69,7 +69,7 @@ func (r *proxyRows) Next(dest []driver.Value) error {
 			}
 		}
 		r.driver.recording = append(
-			r.driver.recording, &Record{Typ: RowsNext, Args: RecordArgs{destCopy, err}})
+			r.driver.recording, &record{Typ: RowsNext, Args: recordArgs{destCopy, err}})
 		return err
 	}
 

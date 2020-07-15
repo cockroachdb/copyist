@@ -164,8 +164,9 @@ func TestDataTypes(t *testing.T) {
 
 	_, err = db.Exec(`
 		INSERT INTO datatypes VALUES
-			(1, 'foo', '2000-01-01T10:00:00Z', '2000-01-01T10:00:00Z', true,
-			 'ABCD', 1.1, 100.1234, ARRAY(1.1, 2.2), '8B78978B-7D8B-489E-8CA9-AC4BDC495A82'),
+			(1, 'foo' || CHR(9) || CHR(10) || ' ,]', '2000-01-01T10:00:00Z', '2000-01-01T10:00:00Z',
+			 true, 'ABCD', 1.1, 100.1234, ARRAY(1.1, 1.2345678901234567),
+			 '8B78978B-7D8B-489E-8CA9-AC4BDC495A82'),
 			(2, '', '2000-02-02T11:11:11-08:00', '2000-02-02T11:11:11-08:00', false,
 			 '', -1e10, -0.0, ARRAY(), '00000000-0000-0000-0000-000000000000')
 	`)
@@ -183,9 +184,9 @@ func TestDataTypes(t *testing.T) {
 	require.NoError(t, rows.Scan(
 		&out.i, &out.s, &out.tmz, &out.tm, &out.b, &out.by, &out.f, &out.d, &out.fa, &out.u))
 	require.Equal(t, dataTypes{
-		i: 1, s: "foo", tmz: copyist.ParseTime("2000-01-01T10:00:00Z"),
-		tm: copyist.ParseTime("2000-01-01T10:00:00+00:00"), b: true,
-		by: []byte{'A', 'B', 'C', 'D'}, f: 1.1, d: "100.1234", fa: "{1.1,2.2}",
+		i: 1, s: "foo\t\n ,]", tmz: parseTime("2000-01-01T10:00:00Z"),
+		tm: parseTime("2000-01-01T10:00:00+00:00"), b: true,
+		by: []byte{'A', 'B', 'C', 'D'}, f: 1.1, d: "100.1234", fa: "{1.1,1.2345678901234567}",
 		u: []byte("8b78978b-7d8b-489e-8ca9-ac4bdc495a82"),
 	}, out)
 
@@ -193,8 +194,8 @@ func TestDataTypes(t *testing.T) {
 	require.NoError(t, rows.Scan(
 		&out.i, &out.s, &out.tmz, &out.tm, &out.b, &out.by, &out.f, &out.d, &out.fa, &out.u))
 	require.Equal(t, dataTypes{
-		i: 2, s: "", tmz: copyist.ParseTime("2000-02-02T19:11:11Z"),
-		tm: copyist.ParseTime("2000-02-02T11:11:11+00:00"), b: false,
+		i: 2, s: "", tmz: parseTime("2000-02-02T19:11:11Z"),
+		tm: parseTime("2000-02-02T11:11:11+00:00"), b: false,
 		by: []byte{}, f: -1e10, d: "0.0", fa: "{}",
 		u: []byte("00000000-0000-0000-0000-000000000000"),
 	}, out)
@@ -349,4 +350,12 @@ func TestSqlx(t *testing.T) {
 	}
 
 	require.NoError(t, tx.Commit())
+}
+
+func parseTime(s string) time.Time {
+	t, err := time.Parse(time.RFC3339Nano, s)
+	if err != nil {
+		panic(err)
+	}
+	return t
 }

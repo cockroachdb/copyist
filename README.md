@@ -1,14 +1,16 @@
 # copyist
 Mocking your SQL database in Go tests has never been easier. The copyist library
 automatically records low-level SQL calls made during your tests. It then
-generates test code that can play back those calls without connecting to the
-real SQL database. Run your tests again. This time, they'll run much faster,
-because now they do not require a database connection.
+generates recording files that can be used to play back those calls without
+connecting to the real SQL database. Run your tests again. This time, they'll
+run much faster, because now they do not require a database connection.
 
 Best of all, your tests will run as if your test database was reset to a clean,
 well-known state between every test case. Gone are the frustrating problems
 where a test runs fine in isolation, but fails when run in concert with other
-tests that modify the database.
+tests that modify the database. In fact, during playback you can run different
+test packages in parallel, since they will not conflict with one another at the
+database level.
 
 copyist imposes no overhead on production code, and it requires almost no
 changes to your application or testing code, as long as that code directly or
@@ -52,11 +54,11 @@ when application changes occur.
 copyist includes a Go `sql` package driver that records the low-level SQL calls
 made by application and test code. When a Go test using copyist is invoked with
 the "-record" command-line flag, then the copyist driver will record all SQL
-calls. When the test completes, copyist will generate playback Go code in a
-companion test file. The Go test can then be run again without the "-record"
-flag. This time the copyist driver will play back the recorded calls, without
-needing to access the database. The Go test is none the wiser, and runs as if it
-was using the database.
+calls. When the test completes, copyist will generate a custom text file that
+contains the recorded SQL calls. The Go test can then be run again without the
+"-record" flag. This time the copyist driver will play back the recorded calls,
+without needing to access the database. The Go test is none the wiser, and runs
+as if it was using the database.
 
 ## How do I use copyist?
 Below is the recommended test pattern for using copyist. The example shows how
@@ -91,11 +93,11 @@ To make copyist run in "recording" mode, invoke the test with the `record` flag:
 ```
 go test -run TestQueryName -record
 ``` 
-This will generate a new test file in the same directory as the `TestQueryName`
-file. For example, if that file is called `app_test.go`, then copyist will
-generate an `app_copyist_test.go` file containing the recording for the
-`TestQueryName` test. Now try running the test a couple more times (the first
-time requires a recompile of the test, so will take longer):
+This will generate a new recording file in the same directory as the
+`TestQueryName` file. For example, if that file is called `app_test.go`, then
+copyist will generate an `app_copyist_test.txt` file containing the recording
+for the `TestQueryName` test. Now try running the test a couple more times (the
+first time requires a recompile of the test, so will take longer):
 ```
 go test -run TestQueryName
 go test -run TestQueryName
@@ -151,21 +153,28 @@ func TestMain(m *testing.M) {
 ```
 This triggers the first query in TestMain, which is always run before tests.
 
-#### The generated copyist test files are too big
-The size of the test files is directly related to the number of accesses your
-tests make to the database, as well as the amount of data that they request.
-While copyist takes pains to generate efficient code that eliminates as much
-redundancy as possible, there's only so much it can do. Try to write tests that
-operate over smaller amounts of interesting data. For tests that require large
-numbers of database calls, or large amounts of data, use a different form of
-verification. One nice thing about copyist is that you can pick and choose
+#### The generated copyist recording files are too big
+The size of the recording files is directly related to the number of accesses
+your tests make to the database, as well as the amount of data that they
+request. While copyist takes pains to generate efficient code that eliminates as
+much redundancy as possible, there's only so much it can do. Try to write tests
+that operate over smaller amounts of interesting data. For tests that require
+large numbers of database calls, or large amounts of data, use a different form
+of verification. One nice thing about copyist is that you can pick and choose
 which tests will use it. The right tool for the right job, and all that.
 
 ## Limitations
-* Because of the way copyist works, it can only be used with non-parallel,
-single-threaded tests and application code. This is because the driver code has
-no way of knowing which connections, statements, and transactions are used by
-which test and/or by which thread.
+* Because of the way copyist works, it cannot be used with test and application
+code that accesses the database concurrently on multiple threads. This includes
+tests running with the "-parallel" testing flag, which enables tests in the same
+package to run in parallel. Multiple threads are problematic because the copyist
+driver code has no way to know which threads are associated with which tests.
+However, this limitation does not apply to running different test packages in
+parallel; in playback mode, this is both possible and highly encouraged!
+However, in recording mode, there may be problems if your tests conflict with
+one another at the database layer (i.e. by reading/modifying the same rows). The
+recommended pattern is to run test packages serially in recording mode, and then
+in parallel in playback mode.
 
 * copyist currently supports only the Postgres `pq` driver. If you'd like to
 extend copyist to support other drivers, like MySql or SQLite, you're invited to
