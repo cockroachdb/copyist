@@ -127,7 +127,7 @@ func Register(driverName string, resetDB ResetCallback) {
 // alongside the test file, such as:
 //
 //   mystuff_test.go
-//   mystuff_copyist_test.go
+//   mystuff_test_copyist.txt
 //
 // Each test (or sub-test) should record its own session so that they can be
 // executed independently.
@@ -139,9 +139,8 @@ func Open() io.Closer {
 	// Get name and path of calling test function.
 	fileName, funcName := findTestFileAndName()
 
-	// Construct the recording file name by prefixing the "_test" suffix
-	// with "_copyist".
-	fileName = fileName[:len(fileName)-8] + "_copyist_test.txt"
+	// Construct the recording file name by suffixing with "_copyist.txt".
+	fileName = fileName[:len(fileName)-3] + "_copyist.txt"
 
 	// The recording name is just the test function name.
 	// TODO(andyk): Consider appending testing.T test name in order to support
