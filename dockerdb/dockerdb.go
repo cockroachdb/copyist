@@ -15,12 +15,14 @@
 package dockerdb
 
 import (
+	"bytes"
 	"database/sql"
 	"errors"
 	"io"
 	"log"
 	"os/exec"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -50,15 +52,31 @@ func Start(dockerArgs, driverName, dataSourceName string) io.Closer {
 	exec.Command("docker", "rm", containerName, "-f").Run()
 
 	// Start up docker.
+	var out bytes.Buffer
 	args := strings.Split(dockerArgs, " ")
 	args = append([]string{"run", "--name", containerName}, args...)
 	cmd := exec.Command("docker", args...)
+	cmd.Stderr = &out
+	cmd.Stdout = &out
 	if err := cmd.Start(); err != nil {
 		panic(err)
 	}
 
-	// Wait for the database to start.
+	// Wait for the database to start. If the docker process exits before the
+	// database has started, then something must have gone wrong, so panic with
+	// output of the docker process.
+	var noPanic int64
+	go func() {
+		cmd.Wait()
+		if atomic.LoadInt64(&noPanic) == 0 {
+			panic(out.String())
+		}
+	}()
 	waitForDB(driverName, dataSourceName)
+
+	// Database has successfully started, so don't panic when docker process
+	// exits.
+	atomic.AddInt64(&noPanic, 1)
 
 	// Remove container
 	return closer(func() error {
