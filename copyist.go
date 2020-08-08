@@ -161,6 +161,8 @@ func OpenNamed(fileName, recordingName string) io.Closer {
 		panic("Register was not called")
 	}
 
+	f := newRecordingFile(fileName)
+
 	if IsRecording() {
 		// Invoke resetDB callback, if defined.
 		if registered.resetDB != nil {
@@ -179,10 +181,14 @@ func OpenNamed(fileName, recordingName string) io.Closer {
 		registered.recording = recording{}
 		registered.index = 0
 
-		// Once the recording session has been closed, construct a new AddRecording
-		// call and add it to the body of the init function.
+		// Once the recording session has been closed, construct a new
+		// AddRecording call and add it to the body of the init function.
 		return closer(func() error {
-			f := parseRecordingFile(fileName)
+			// If no recording file exists, or there is parse error, then ignore
+			// the error and create a new file. Parse errors can happen when
+			// there's a Git merge conflict, and it's convenient to just
+			// silently regenerate the file.
+			f.Parse()
 			f.AddRecording(recordingName, registered.recording)
 			f.WriteRecordingFile(fileName)
 			registered.recording = nil
@@ -190,7 +196,14 @@ func OpenNamed(fileName, recordingName string) io.Closer {
 		})
 	}
 
-	f := parseRecordingFile(fileName)
+	// If recording file exists, parse it now.
+	if _, err := os.Stat(f.fileName); !os.IsNotExist(err) {
+		err := f.Parse()
+		if err != nil {
+			panic(fmt.Errorf("error parsing recording file: %v", err))
+		}
+	}
+
 	recording := f.GetRecording(recordingName)
 	if recording == nil {
 		panic(fmt.Errorf("no recording exists with this name: %v", recordingName))

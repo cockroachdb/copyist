@@ -82,12 +82,11 @@ type recordingFile struct {
 	scratch bytes.Buffer
 }
 
-// parseRecordingFile parses the given copyist recording file and returns an
-// in-memory representation of it.
-func parseRecordingFile(fileName string) *recordingFile {
-	f := &recordingFile{fileName: fileName, md5Hasher: md5.New()}
-	f.parse()
-	return f
+// newRecordingFile creates a new recordingFile data structure. Parse can be
+// called to add recordings from an existing file, or AddRecording to add new
+// recordings.
+func newRecordingFile(fileName string) *recordingFile {
+	return &recordingFile{fileName: fileName, md5Hasher: md5.New()}
 }
 
 // GetRecording returns the recording from the copyist recording file having the
@@ -217,23 +216,18 @@ func (f *recordingFile) WriteRecordingFile(fileName string) {
 	}
 }
 
-// parse reads the copyist recording file and extracts recording and record
+// Parse reads the copyist recording file and extracts recording and record
 // declarations from it, and stores them in in-memory data structures for
 // convenient and performant access.
-func (f *recordingFile) parse() {
-	// If no recording file yet exists, then nothing more to do.
-	if _, err := os.Stat(f.fileName); os.IsNotExist(err) {
-		return
-	}
-
+func (f *recordingFile) Parse() error {
 	file, err := os.Open(f.fileName)
 	if err != nil {
-		panic(fmt.Errorf("error opening copyist recording file: %v", err))
+		return fmt.Errorf("error opening copyist recording file: %v", err)
 	}
 	defer file.Close()
 
-	f.recordDecls = make(map[int]string)
-	f.recordingDecls = make(map[string]string)
+	recordDecls := make(map[int]string)
+	recordingDecls := make(map[string]string)
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -247,30 +241,34 @@ func (f *recordingFile) parse() {
 			//   1=DriverOpen 3:nil
 			index := strings.Index(text, "=")
 			if index == -1 {
-				panic(fmt.Errorf("expected equals: %s", text))
+				return fmt.Errorf("expected equals: %s", text)
 			}
 
 			recordNum, err := strconv.Atoi(text[:index])
 			if err != nil {
-				panic(fmt.Errorf("expected record number: %s", text))
+				return fmt.Errorf("expected record number: %s", text)
 			}
 
-			f.recordDecls[recordNum-1] = text[index+1:]
+			recordDecls[recordNum-1] = text[index+1:]
 		} else {
 			// Split the line on the last equal sign:
 			//   "some:name":1,2,3,4
 			index := strings.LastIndex(text, "=")
 			if index == -1 {
-				panic(fmt.Errorf("expected equals: %s", text))
+				return fmt.Errorf("expected equals: %s", text)
 			}
 			recordingName, err := strconv.Unquote(text[:index])
 			if err != nil {
-				panic(err)
+				return err
 			}
 			recordingDecl := text[index+1:]
-			f.recordingDecls[recordingName] = recordingDecl
+			recordingDecls[recordingName] = recordingDecl
 		}
 	}
+
+	f.recordDecls = recordDecls
+	f.recordingDecls = recordingDecls
+	return nil
 }
 
 // parseRecordingDecl parses a recording declaration value in a format similar
