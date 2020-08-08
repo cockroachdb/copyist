@@ -47,7 +47,12 @@ func TestRoundtrip(t *testing.T) {
 		{"format driver.Value value", []driver.Value{0, []string{"foo", "bar"}, io.EOF}},
 		{"format nested values", []driver.Value{[]driver.Value{0, nil}, "foo"}},
 		{"format empty values", []driver.Value{"", []driver.Value{}, []string{}}},
-		{"format slices with interesting tokens", []string{",][", "\n\t"}},
+		{"format slices with interesting tokens", []driver.Value{
+			",][*// //* \"string\" range }{ `a string\n`",
+			parseTime("2020-08-06T15:20:25.831116+00:00"),
+			[]driver.Value{8, parseTime("2020-08-06T15:20:25.831116+00:00"), -8},
+			"\n\t",
+		}},
 	}
 
 	for _, cas := range cases {

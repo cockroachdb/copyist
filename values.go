@@ -277,6 +277,7 @@ func parseSlice(s string) ([]string, error) {
 	var tokens []string
 	var scan scanner.Scanner
 	scan.Init(strings.NewReader(s))
+	scan.Mode = scanner.ScanStrings
 
 	nesting := 0
 	for {
