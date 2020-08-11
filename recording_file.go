@@ -22,6 +22,7 @@ import (
 	"hash"
 	"io/ioutil"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 )
@@ -57,8 +58,9 @@ type hashValue [md5.Size]byte
 // common for multiple recording declarations to share one or more records,
 // since driver calls are often quite redundant across tests.
 type recordingFile struct {
-	// fileName is the name of the copyist recording file.
-	fileName string
+	// pathName is the location of the copyist recording file (can be relative
+	// or absolute).
+	pathName string
 
 	// recordDecls is a map of the parsed record declarations in the recording
 	// file, keyed by the number of each declaration. The map value is the
@@ -85,8 +87,8 @@ type recordingFile struct {
 // newRecordingFile creates a new recordingFile data structure. Parse can be
 // called to add recordings from an existing file, or AddRecording to add new
 // recordings.
-func newRecordingFile(fileName string) *recordingFile {
-	return &recordingFile{fileName: fileName, md5Hasher: md5.New()}
+func newRecordingFile(pathName string) *recordingFile {
+	return &recordingFile{pathName: pathName, md5Hasher: md5.New()}
 }
 
 // GetRecording returns the recording from the copyist recording file having the
@@ -120,12 +122,12 @@ func (f *recordingFile) AddRecording(recordingName string, newRecording recordin
 	f.addRecordings[recordingName] = newRecording
 }
 
-// WriteRecordingFile writes all recordings to the given filename, in the
-// copyist recording file format. All recordings buffered in memory will be
-// written, with any recordings added by AddRecording overriding existing
-// recordings. Only record declarations that are used by the written set of
-// recordings will be written to disk.
-func (f *recordingFile) WriteRecordingFile(fileName string) {
+// WriteRecordingFile writes all recordings to the recording file in the copyist
+// recording file format. All recordings buffered in memory will be written,
+// with any recordings added by AddRecording overriding existing recordings.
+// Only record declarations that are used by the written set of recordings will
+// be written to disk.
+func (f *recordingFile) WriteRecordingFile() {
 	// Accumulate records and recordings that need to be written to disk.
 	outRecordDecls := make([]string, 0, len(f.recordingDecls)+len(f.addRecordings))
 	outRecordingDecls := make(map[string]string)
@@ -210,8 +212,16 @@ func (f *recordingFile) WriteRecordingFile(fileName string) {
 		f.scratch.WriteByte('\n')
 	}
 
+	// Ensure directory exists.
+	dirName := path.Dir(f.pathName)
+	if _, err := os.Stat(dirName); os.IsNotExist(err) {
+		if err := os.MkdirAll(dirName, 0777); err != nil {
+			panic(err)
+		}
+	}
+
 	// Write the bytes to disk.
-	if err := ioutil.WriteFile(fileName, f.scratch.Bytes(), 0666); err != nil {
+	if err := ioutil.WriteFile(f.pathName, f.scratch.Bytes(), 0666); err != nil {
 		panic(err)
 	}
 }
@@ -220,7 +230,7 @@ func (f *recordingFile) WriteRecordingFile(fileName string) {
 // declarations from it, and stores them in in-memory data structures for
 // convenient and performant access.
 func (f *recordingFile) Parse() error {
-	file, err := os.Open(f.fileName)
+	file, err := os.Open(f.pathName)
 	if err != nil {
 		return fmt.Errorf("error opening copyist recording file: %v", err)
 	}

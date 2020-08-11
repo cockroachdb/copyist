@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"runtime"
 	"strings"
 )
@@ -136,32 +137,35 @@ func Open() io.Closer {
 		panic(errors.New("Register was not called"))
 	}
 
-	// Get name and path of calling test function.
+	// Get name and pathName of calling test function.
 	fileName, funcName := findTestFileAndName()
 
-	// Construct the recording file name by suffixing with "_copyist.txt".
-	fileName = fileName[:len(fileName)-3] + "_copyist.txt"
+	// Construct the recording pathName name by locating the copyist recording file
+	// in the testdata directory with the ".copyist" extension.
+	dirName := path.Join(path.Dir(fileName), "testdata")
+	fileName = path.Base(fileName[:len(fileName)-3]) + ".copyist"
+	pathName := path.Join(dirName, fileName)
 
 	// The recording name is just the test function name.
 	// TODO(andyk): Consider appending testing.T test name in order to support
 	// subtests. This would require Open to take a testing.T parameter.
 	recordingName := funcName
 
-	return OpenNamed(fileName, recordingName)
+	return OpenNamed(pathName, recordingName)
 }
 
-// OpenNamed is a variant of Open which accepts a caller-specified fileName and
+// OpenNamed is a variant of Open which accepts a caller-specified pathName and
 // recordingName rather than deriving default values for them. The given
-// fileName will be used as the name of the output file containing the
-// recordings rather than the default "_copyist_test.txt" file. The given
-// recordingName will be used as the recording name in that file rather than
-// calculating the default name of "<testFunctionName>".
-func OpenNamed(fileName, recordingName string) io.Closer {
+// pathName will be used as the name of the output file containing the
+// recordings rather than the default "_test.copyist" file in the testdata
+// directory. The given recordingName will be used as the recording name in that
+// file rather than calculating the default name of "<testFunctionName>".
+func OpenNamed(pathName, recordingName string) io.Closer {
 	if registered == nil {
 		panic("Register was not called")
 	}
 
-	f := newRecordingFile(fileName)
+	f := newRecordingFile(pathName)
 
 	if IsRecording() {
 		// Invoke resetDB callback, if defined.
@@ -190,14 +194,14 @@ func OpenNamed(fileName, recordingName string) io.Closer {
 			// silently regenerate the file.
 			f.Parse()
 			f.AddRecording(recordingName, registered.recording)
-			f.WriteRecordingFile(fileName)
+			f.WriteRecordingFile()
 			registered.recording = nil
 			return nil
 		})
 	}
 
 	// If recording file exists, parse it now.
-	if _, err := os.Stat(f.fileName); !os.IsNotExist(err) {
+	if _, err := os.Stat(f.pathName); !os.IsNotExist(err) {
 		err := f.Parse()
 		if err != nil {
 			panic(fmt.Errorf("error parsing recording file: %v", err))
