@@ -16,18 +16,20 @@ package pqtest
 
 import (
 	"database/sql"
-	"github.com/cockroachdb/copyist"
 	"io"
+	"testing"
+
+	"github.com/cockroachdb/copyist"
 )
 
 // IndirectOpen is used with the TestIndirectOpen function to test calls to
 // copyist.Open in helper functions.
-func IndirectOpen(dataSourceName string) (*sql.DB, io.Closer) {
-	return evenMoreIndirectOpen(dataSourceName)
+func IndirectOpen(t *testing.T, dataSourceName string) (*sql.DB, io.Closer) {
+	return evenMoreIndirectOpen(t, dataSourceName)
 }
 
-func evenMoreIndirectOpen(dataSourceName string) (*sql.DB, io.Closer) {
-	closer := copyist.Open()
+func evenMoreIndirectOpen(t *testing.T, dataSourceName string) (*sql.DB, io.Closer) {
+	closer := copyist.Open(t)
 
 	// Open database.
 	db, err := sql.Open("copyist_postgres", dataSourceName)

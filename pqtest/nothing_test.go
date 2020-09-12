@@ -21,5 +21,5 @@ import (
 
 // TestNothing does not access the database at all.
 func TestNothing(t *testing.T) {
-	defer copyist.Open().Close()
+	defer copyist.Open(t).Close()
 }

@@ -69,7 +69,7 @@ func init() {
 }
 
 func TestQueryName(t *testing.T) {
-	defer copyist.Open().Close()
+	defer copyist.Open(t).Close()
 
 	db, _ := sql.Open("copyist_postgres", "postgresql://root@localhost")
 	defer db.Close()
@@ -84,7 +84,7 @@ In your `init` or `TestMain` function (or any other place that gets called
 before any of the tests), call the `copyist.Register` function. This function
 registers a new driver with Go's `sql` package with the name
 `copyist_<driverName>`. In any tests you'd like to record, add a
-`defer copyist.Open().Close()` statement. This statement begins a new recording
+`defer copyist.Open(t).Close()` statement. This statement begins a new recording
 session, and then generates playback code when `Close` is called at the end of
 the test.
 
@@ -93,18 +93,22 @@ To make copyist run in "recording" mode, invoke the test with the `record` flag:
 ```
 go test -run TestQueryName -record
 ``` 
-This will generate a new recording file in the same directory as the
-`TestQueryName` file. For example, if that file is called `app_test.go`, then
-copyist will generate an `app_copyist_test.txt` file containing the recording
-for the `TestQueryName` test. Now try running the test a couple more times (the
-first time requires a recompile of the test, so will take longer):
+This will generate a new recording file in a `testdata` subdirectory, with the
+same name as the test file, but with a `.copyist` extension. For example, if the
+test file is called `app_test.go`, then copyist will generate an
+`testdata/app_test.copyist` file containing the recording for the
+`TestQueryName` test. Now try running the test a couple more times (the first
+time requires a recompile of the test, so will take longer):
 ```
 go test -run TestQueryName
 go test -run TestQueryName
 go test -run TestQueryName
 ```
 It should now run significantly faster. You can also define the COPYIST_RECORD
-environment variable (to any value) to make copyist run in recording mode.
+environment variable (to any value) to make copyist run in recording mode:
+```
+COPYIST_RECORD=1 go test -run TestQueryName
+``` 
 
 ## How do I reset the database between tests?
 The above section glossed over an important detail. When registering a driver
@@ -146,8 +150,8 @@ in the case of an ORM sending a setup query, you might initialize it from your
 func TestMain(m *testing.M) {
 	flag.Parse()
 	copyist.Register("postgres", resetDB)
-	closer := copyist.Open()
-	pop.Connect("test-copyist")
+	closer := copyist.OpenNamed("test.copyist", "OpenCopyist")
+	pop.Connect("copyist-test")
 	closer.Close()
 	os.Exit(m.Run())
 }

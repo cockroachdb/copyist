@@ -22,7 +22,7 @@ import (
 )
 
 func TestQueryName(t *testing.T) {
-	defer copyist.Open().Close()
+	defer copyist.Open(t).Close()
 
 	db, _ := sql.Open("copyist_postgres", dataSourceName)
 	defer db.Close()

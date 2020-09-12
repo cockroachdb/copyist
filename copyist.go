@@ -24,6 +24,7 @@ import (
 	"path"
 	"runtime"
 	"strings"
+	"testing"
 )
 
 // recordFlag instructs copyist to record all calls to the registered driver, if
@@ -119,7 +120,7 @@ func Register(driverName string, resetDB ResetCallback) {
 //   }
 //
 //   func TestMyStuff(t *testing.T) {
-//     defer copyist.Open().Close()
+//     defer copyist.Open(t).Close()
 //     ...
 //   }
 //
@@ -132,24 +133,22 @@ func Register(driverName string, resetDB ResetCallback) {
 //
 // Each test (or sub-test) should record its own session so that they can be
 // executed independently.
-func Open() io.Closer {
+func Open(t *testing.T) io.Closer {
 	if registered == nil {
 		panic(errors.New("Register was not called"))
 	}
 
-	// Get name and pathName of calling test function.
-	fileName, funcName := findTestFileAndName()
+	// Get name of calling test file.
+	fileName := findTestFile()
 
-	// Construct the recording pathName name by locating the copyist recording file
-	// in the testdata directory with the ".copyist" extension.
+	// Construct the recording pathName name by locating the copyist recording
+	// file in the testdata directory with the ".copyist" extension.
 	dirName := path.Join(path.Dir(fileName), "testdata")
 	fileName = path.Base(fileName[:len(fileName)-3]) + ".copyist"
 	pathName := path.Join(dirName, fileName)
 
-	// The recording name is just the test function name.
-	// TODO(andyk): Consider appending testing.T test name in order to support
-	// subtests. This would require Open to take a testing.T parameter.
-	recordingName := funcName
+	// The recording name is the name of the test.
+	recordingName := t.Name()
 
 	return OpenNamed(pathName, recordingName)
 }
@@ -159,7 +158,7 @@ func Open() io.Closer {
 // pathName will be used as the name of the output file containing the
 // recordings rather than the default "_test.copyist" file in the testdata
 // directory. The given recordingName will be used as the recording name in that
-// file rather than calculating the default name of "<testFunctionName>".
+// file rather than using the testing.T.Name() value.
 func OpenNamed(pathName, recordingName string) io.Closer {
 	if registered == nil {
 		panic("Register was not called")
@@ -229,19 +228,15 @@ func OpenNamed(pathName, recordingName string) io.Closer {
 	})
 }
 
-// findTestFileAndName searches the call stack, looking for the test that called
-// copyist.Open. Search up to N levels, looking for a file that ends in
-// "_test.go" and extract the function name from it. Return both the filename
-// and function name.
-func findTestFileAndName() (fileName, funcName string) {
+// findTestFile searches the call stack, looking for the test that called
+// copyist.Open. It searches up to N levels, looking for a file that ends in
+// "_test.go" and returns that filename.
+func findTestFile() string {
 	const levels = 5
 	for i := 0; i < levels; i++ {
-		var pc uintptr
-		pc, fileName, _, _ = runtime.Caller(2 + i)
+		_, fileName, _, _ := runtime.Caller(2 + i)
 		if strings.HasSuffix(fileName, "_test.go") {
-			// Extract package name from calling function name.
-			funcName = runtime.FuncForPC(pc).Name()
-			return fileName, funcName
+			return fileName
 		}
 	}
 	panic(fmt.Errorf("Open was not called directly or indirectly from a test file"))

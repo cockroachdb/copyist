@@ -26,7 +26,7 @@ import (
 func TestOpenWithoutRegister(t *testing.T) {
 	registered = nil
 	require.PanicsWithError(t, "Register was not called", func() {
-		Open()
+		Open(t)
 	})
 }
 
@@ -51,7 +51,7 @@ func TestUnknownDriver(t *testing.T) {
 
 	registered = nil
 	Register("unknown", nil)
-	Open()
+	Open(t)
 	db, err := sql.Open("copyist_unknown", "")
 	require.NoError(t, err)
 	_, err = db.Query("SELECT 1")
@@ -71,8 +71,8 @@ func TestRecordingNotFound(t *testing.T) {
 	ignorePanic(func() { Register("postgres", nil) })
 	require.PanicsWithError(
 		t,
-		`no recording exists with this name: github.com/cockroachdb/copyist.TestRecordingNotFound.func2`,
-		func() { Open() },
+		`no recording exists with this name: TestRecordingNotFound`,
+		func() { Open(t) },
 	)
 }
 

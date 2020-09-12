@@ -103,7 +103,7 @@ func resetDB() {
 
 // TestQuery fetches a single customer.
 func TestQuery(t *testing.T) {
-	defer copyist.Open().Close()
+	defer copyist.Open(t).Close()
 
 	// Open database.
 	db, err := sql.Open("copyist_postgres", dataSourceName)
@@ -122,7 +122,7 @@ func TestQuery(t *testing.T) {
 
 // TestInsert inserts a row and ensures that it's been committed.
 func TestInsert(t *testing.T) {
-	defer copyist.Open().Close()
+	defer copyist.Open(t).Close()
 
 	// Open database.
 	db, err := sql.Open("copyist_postgres", dataSourceName)
@@ -148,7 +148,7 @@ func TestInsert(t *testing.T) {
 
 // TestDataTypes queries data types that are interesting for the PQ driver.
 func TestDataTypes(t *testing.T) {
-	defer copyist.Open().Close()
+	defer copyist.Open(t).Close()
 
 	// Open database.
 	db, err := sql.Open("copyist_postgres", dataSourceName)
@@ -208,7 +208,7 @@ func TestDataTypes(t *testing.T) {
 func TestFloatLiterals(t *testing.T) {
 	// Run twice in order to regress problem with float roundtripping.
 	t.Run("run 1", func(t *testing.T) {
-		defer copyist.Open().Close()
+		defer copyist.Open(t).Close()
 
 		// Open database.
 		db, err := sql.Open("copyist_postgres", dataSourceName)
@@ -220,7 +220,7 @@ func TestFloatLiterals(t *testing.T) {
 	})
 
 	t.Run("run 2", func(t *testing.T) {
-		defer copyist.Open().Close()
+		defer copyist.Open(t).Close()
 
 		// Open database.
 		db, err := sql.Open("copyist_postgres", dataSourceName)
@@ -234,7 +234,7 @@ func TestFloatLiterals(t *testing.T) {
 
 // TestTxns commits and aborts transactions.
 func TestTxns(t *testing.T) {
-	defer copyist.Open().Close()
+	defer copyist.Open(t).Close()
 
 	// Open database.
 	db, err := sql.Open("copyist_postgres", dataSourceName)
@@ -280,7 +280,7 @@ func TestPooling(t *testing.T) {
 	var sessionID string
 
 	t.Run("ensure connections are pooled within same copyist session", func(t *testing.T) {
-		defer copyist.Open().Close()
+		defer copyist.Open(t).Close()
 
 		var firstSessionID string
 		rows, err := db.Query("SHOW session_id")
@@ -300,7 +300,7 @@ func TestPooling(t *testing.T) {
 	})
 
 	t.Run("ensure connections are *not* pooled across copyist sessions", func(t *testing.T) {
-		defer copyist.Open().Close()
+		defer copyist.Open(t).Close()
 
 		var nextSessionID string
 		rows, err := db.Query("SHOW session_id")
@@ -314,7 +314,7 @@ func TestPooling(t *testing.T) {
 
 // TestIndirectOpen calls copyist.Open indirectly in a helper function.
 func TestIndirectOpen(t *testing.T) {
-	db, closer := pqtest.IndirectOpen(dataSourceName)
+	db, closer := pqtest.IndirectOpen(t, dataSourceName)
 	defer closer.Close()
 
 	rows, err := db.Query("SELECT name FROM customers WHERE id=$1", 1)
@@ -329,7 +329,7 @@ func TestIndirectOpen(t *testing.T) {
 
 // TestSqlx tests usage of the `sqlx` package with copyist.
 func TestSqlx(t *testing.T) {
-	defer copyist.Open().Close()
+	defer copyist.Open(t).Close()
 
 	// Open database.
 	db, err := sqlx.Open("copyist_postgres", dataSourceName)

@@ -5,4 +5,4 @@
 5=RowsColumns	9:["name"]
 6=RowsNext	11:[2:"Andy"]	1:nil
 
-"github.com/cockroachdb/copyist/pqtest_test.TestQueryName"=1,2,3,4,5,6
+"TestQueryName"=1,2,3,4,5,6
