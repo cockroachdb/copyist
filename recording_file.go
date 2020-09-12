@@ -18,6 +18,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/md5"
+	"errors"
 	"fmt"
 	"hash"
 	"io/ioutil"
@@ -137,6 +138,10 @@ func (f *recordingFile) WriteRecordingFile() {
 	// outRecordDecls. It returns the unique record number assigned to the
 	// given record declaration.
 	addRecordDecl := func(recordDecl string) int {
+		if len(recordDecl) > MaxRecordingSize {
+			panic(errors.New("recording exceeds copyist.MaxRecordingSize and cannot be written"))
+		}
+
 		hashVal := f.hashStr(recordDecl)
 		num, ok := hashToNumMap[hashVal]
 		if !ok {
@@ -240,6 +245,7 @@ func (f *recordingFile) Parse() error {
 	recordingDecls := make(map[string]string)
 
 	scanner := bufio.NewScanner(file)
+	scanner.Buffer(nil, MaxRecordingSize)
 	for scanner.Scan() {
 		text := scanner.Text()
 		if len(text) == 0 {
@@ -274,6 +280,13 @@ func (f *recordingFile) Parse() error {
 			recordingDecl := text[index+1:]
 			recordingDecls[recordingName] = recordingDecl
 		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		if err == bufio.ErrTooLong {
+			err = errors.New("recording exceeds copyist.MaxRecordingSize and cannot be read")
+		}
+		return err
 	}
 
 	f.recordDecls = recordDecls

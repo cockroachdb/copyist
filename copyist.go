@@ -58,6 +58,10 @@ func IsRecording() bool {
 	return *recordFlag
 }
 
+// MaxRecordingSize is the maximum size, in bytes, of a single recording in its
+// text format.
+var MaxRecordingSize = 1024 * 1024
+
 // ResetCallback types a function that is invoked during each call to
 // copyist.Open, when in recording mode, in order to reset the database to a
 // clean, well-known state.
