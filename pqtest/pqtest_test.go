@@ -364,6 +364,16 @@ func TestOpenNamed(t *testing.T) {
 	rows.Next()
 }
 
+func TestIsOpen(t *testing.T) {
+	require.False(t, copyist.IsOpen())
+
+	closer := copyist.Open(t)
+	require.True(t, copyist.IsOpen())
+
+	closer.Close()
+	require.False(t, copyist.IsOpen())
+}
+
 func parseTime(s string) time.Time {
 	t, err := time.Parse(time.RFC3339Nano, s)
 	if err != nil {

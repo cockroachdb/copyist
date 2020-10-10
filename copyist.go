@@ -80,6 +80,15 @@ func (c closer) Close() error {
 // nil if Register has not yet been called.
 var registered *proxyDriver
 
+// IsOpen is true if a recording or playback session is currently in progress.
+// That is, Open or OpenNamed has been called, but Close has not yet been
+// called. This is useful when some tests use copyist and some don't, and
+// testing utility code wants to automatically determine whether to open a
+// connection using the copyist driver or the "real" driver.
+func IsOpen() bool {
+	return registered.recording != nil
+}
+
 // Register constructs a proxy driver that wraps the "real" driver of the given
 // name. Depending on the value of the "record" command-line flag, the
 // constructed proxy will either record calls to the wrapped driver, or else
