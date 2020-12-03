@@ -95,7 +95,7 @@ go test -run TestQueryName -record
 ``` 
 This will generate a new recording file in a `testdata` subdirectory, with the
 same name as the test file, but with a `.copyist` extension. For example, if the
-test file is called `app_test.go`, then copyist will generate an
+test file is called `app_test.go`, then copyist will generate a
 `testdata/app_test.copyist` file containing the recording for the
 `TestQueryName` test. Now try running the test a couple more times (the first
 time requires a recompile of the test, so will take longer):
@@ -122,7 +122,7 @@ If non-nil, this function will be called by copyist each time you call
 `copyist.Open` (typically at the beginning of each test), as long as copyist is
 running in "recording" mode. This reset function can do anything it likes, but
 usually it will run a SQL script against the database in order to reset it to a
-clean state, by dropping/creating tables, deleting data from table, and/or
+clean state, by dropping/creating tables, deleting data from tables, and/or
 inserting "fixture" data into tables that makes testing more convenient.
 
 ## Troubleshooting
