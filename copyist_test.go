@@ -17,6 +17,7 @@ package copyist
 import (
 	"database/sql"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -86,6 +87,11 @@ func TestCopyistEnvVar(t *testing.T) {
 	*recordFlag = false
 	visitedRecording = false
 	require.True(t, IsRecording())
+}
+
+// TestFindTestFile tests that copyist finds the top-level *_test.go file.
+func TestFindTestFile(t *testing.T) {
+	require.Equal(t, "copyist_test.go", filepath.Base(indirectFindTestFile()))
 }
 
 func ignorePanic(f func()) {

@@ -242,15 +242,19 @@ func OpenNamed(pathName, recordingName string) io.Closer {
 }
 
 // findTestFile searches the call stack, looking for the test that called
-// copyist.Open. It searches up to N levels, looking for a file that ends in
-// "_test.go" and returns that filename.
+// copyist.Open. It searches up to N levels, looking for the last file that
+// ends in "_test.go" and returns that filename.
 func findTestFile() string {
-	const levels = 5
+	const levels = 10
+	var lastTestFilename string
 	for i := 0; i < levels; i++ {
 		_, fileName, _, _ := runtime.Caller(2 + i)
 		if strings.HasSuffix(fileName, "_test.go") {
-			return fileName
+			lastTestFilename = fileName
 		}
+	}
+	if lastTestFilename != "" {
+		return lastTestFilename
 	}
 	panic(fmt.Errorf("Open was not called directly or indirectly from a test file"))
 }
