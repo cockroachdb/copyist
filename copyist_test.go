@@ -16,15 +16,17 @@ package copyist
 
 import (
 	"database/sql"
-	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TestOpenWithoutRegister tests that copyist.Open panics if copyist.Register
 // was never called.
 func TestOpenWithoutRegister(t *testing.T) {
 	registered = nil
+	require.False(t, IsOpen())
 	require.PanicsWithError(t, "Register was not called", func() {
 		Open(t)
 	})

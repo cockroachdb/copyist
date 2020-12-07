@@ -86,7 +86,7 @@ var registered *proxyDriver
 // testing utility code wants to automatically determine whether to open a
 // connection using the copyist driver or the "real" driver.
 func IsOpen() bool {
-	return registered.recording != nil
+	return registered != nil && registered.recording != nil
 }
 
 // Register constructs a proxy driver that wraps the "real" driver of the given
