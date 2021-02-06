@@ -12,11 +12,12 @@
 // implied. See the License for the specific language governing
 // permissions and limitations under the License.
 
-package pqtest_test
+package commontest_test
 
 import (
-	"github.com/cockroachdb/copyist"
 	"testing"
+
+	"github.com/cockroachdb/copyist"
 )
 
 // TestNothing does not access the database at all.

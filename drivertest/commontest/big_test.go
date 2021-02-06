@@ -12,7 +12,7 @@
 // implied. See the License for the specific language governing
 // permissions and limitations under the License.
 
-package pqtest_test
+package commontest_test
 
 import (
 	"database/sql"
@@ -31,7 +31,7 @@ func TestBigRecording(t *testing.T) {
 
 	fn := func() {
 		defer copyist.Open(t).Close()
-		db, _ := sql.Open("copyist_postgres", dataSourceName)
+		db, _ := sql.Open("copyist_"+driverName, dataSourceName)
 		defer db.Close()
 		queryBigResult(db)
 	}

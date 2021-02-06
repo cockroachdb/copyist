@@ -1,0 +1,37 @@
+1=DriverOpen	1:nil
+2=ConnBegin	1:nil
+3=ConnPrepare	2:"INSERT INTO customers VALUES ($1, $2)"	1:nil
+4=StmtNumInput	3:2
+5=StmtExec	1:nil
+6=TxCommit	1:nil
+7=TxRollback	1:nil
+8=ConnPrepare	2:"SELECT COUNT(*) FROM customers"	1:nil
+9=StmtNumInput	3:0
+10=StmtQuery	1:nil
+11=RowsColumns	9:["count"]
+12=RowsNext	11:[4:4]	1:nil
+13=RowsNext	11:[]	7:EOF
+14=ConnPrepare	2:"SELECT 1::float, 1.1::float, 1e20::float"	1:nil
+15=RowsColumns	9:["float8","float8","float8"]
+16=RowsNext	11:[5:1,5:1.1,5:1e+20]	1:nil
+17=ResultRowsAffected	4:1	1:nil
+18=ConnPrepare	2:"SELECT name FROM customers WHERE id=$1"	1:nil
+19=StmtNumInput	3:1
+20=RowsColumns	9:["name"]
+21=RowsNext	11:[2:"Andy"]	1:nil
+22=ConnPrepare	2:"\n\t\tCREATE TABLE datatypes\n\t\t(i INT, s TEXT, tz TIMESTAMPTZ, t TIMESTAMP, b BOOL,\n\t\t by BYTES, f FLOAT, d DECIMAL, fa FLOAT[], u UUID)\n\t"	1:nil
+23=ConnPrepare	2:"\n\t\tINSERT INTO datatypes VALUES\n\t\t\t(1, 'foo' || CHR(9) || CHR(10) || ' ,]', '2000-01-01T10:00:00Z', '2000-01-01T10:00:00Z',\n\t\t\t true, 'ABCD', 1.1, 100.1234, ARRAY(1.1, 1.2345678901234567),\n\t\t\t '8B78978B-7D8B-489E-8CA9-AC4BDC495A82'),\n\t\t\t(2, '', '2000-02-02T11:11:11-08:00', '2000-02-02T11:11:11-08:00', false,\n\t\t\t '', -1e10, -0.0, ARRAY(), '00000000-0000-0000-0000-000000000000')\n\t"	1:nil
+24=ResultRowsAffected	4:0	1:nil
+25=ConnPrepare	2:"SELECT i, s, tz, t, b, by, f, d, fa, u FROM datatypes"	1:nil
+26=RowsColumns	9:["i","s","tz","t","b","by","f","d","fa","u"]
+27=RowsNext	11:[4:1,2:"foo\t\n ,]",8:2000-01-01T10:00:00Z,8:2000-01-01T10:00:00+00:00,6:true,10:QUJDRA,5:1.1,10:MTAwLjEyMzQ,10:ezEuMSwxLjIzNDU2Nzg5MDEyMzQ1Njd9,10:OGI3ODk3OGItN2Q4Yi00ODllLThjYTktYWM0YmRjNDk1YTgy]	1:nil
+28=RowsNext	11:[4:2,2:"",8:2000-02-02T19:11:11Z,8:2000-02-02T11:11:11+00:00,6:false,10:,5:-1e+10,10:MC4w,10:e30,10:MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAw]	1:nil
+29=ConnPrepare	2:"SELECT name FROM customers WHERE id=?"	1:nil
+
+"TestSqlx"=1,2,29,19,10,20,21,13,6
+"TestTxns"=1,2,3,4,5,6,2,3,4,5,7,8,9,10,11,12,13
+"TestFloatLiterals/run_1"=1,14,9,10,15,16
+"TestFloatLiterals/run_2"=1,14,9,10,15,16
+"TestInsert"=1,3,4,5,17,8,9,10,11,12,13
+"TestQuery"=1,18,19,10,20,21,13
+"TestDataTypes"=1,22,9,5,23,9,5,24,25,9,10,26,27,28

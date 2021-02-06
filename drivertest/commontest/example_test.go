@@ -12,30 +12,38 @@
 // implied. See the License for the specific language governing
 // permissions and limitations under the License.
 
-package pqtest
+package commontest_test
 
 import (
 	"database/sql"
-	"io"
 	"testing"
 
 	"github.com/cockroachdb/copyist"
 )
 
-// IndirectOpen is used with the TestIndirectOpen function to test calls to
-// copyist.Open in helper functions.
-func IndirectOpen(t *testing.T, dataSourceName string) (*sql.DB, io.Closer) {
-	return evenMoreIndirectOpen(t, dataSourceName)
+func TestQueryName(t *testing.T) {
+	defer copyist.Open(t).Close()
+
+	db, _ := sql.Open("copyist_"+driverName, dataSourceName)
+	defer db.Close()
+
+	name := QueryName(db)
+	if name != "Andy" {
+		t.Error("failed test")
+	}
 }
 
-func evenMoreIndirectOpen(t *testing.T, dataSourceName string) (*sql.DB, io.Closer) {
-	closer := copyist.Open(t)
-
-	// Open database.
-	db, err := sql.Open("copyist_postgres", dataSourceName)
+func QueryName(db *sql.DB) string {
+	rows, err := db.Query("SELECT name FROM customers WHERE id=$1", 1)
 	if err != nil {
 		panic(err)
 	}
+	defer rows.Close()
 
-	return db, closer
+	for rows.Next() {
+		var name string
+		rows.Scan(&name)
+		return name
+	}
+	return ""
 }
