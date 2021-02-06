@@ -32,7 +32,7 @@ import (
 )
 
 // Don't use default CRDB port in case another instance is already running.
-const dockerArgs = "-p 26888:26257 cockroachdb/cockroach:v20.1.3 start --insecure"
+const dockerArgs = "-p 26888:26257 cockroachdb/cockroach:v20.2.4 start --insecure"
 const dataSourceName = "postgresql://root@localhost:26888?sslmode=disable"
 
 const resetScript = `
