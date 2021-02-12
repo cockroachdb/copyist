@@ -25,6 +25,7 @@ import (
 	"github.com/cockroachdb/copyist"
 	"github.com/cockroachdb/copyist/dockerdb"
 	"github.com/cockroachdb/copyist/pqtest"
+	"github.com/fortytw2/leaktest"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 
@@ -32,7 +33,7 @@ import (
 )
 
 // Don't use default CRDB port in case another instance is already running.
-const dockerArgs = "-p 26888:26257 cockroachdb/cockroach:v20.2.4 start --insecure"
+const dockerArgs = "-p 26888:26257 cockroachdb/cockroach:v20.2.4 start-single-node --insecure"
 const dataSourceName = "postgresql://root@localhost:26888?sslmode=disable"
 
 const resetScript = `
@@ -103,11 +104,13 @@ func resetDB() {
 
 // TestQuery fetches a single customer.
 func TestQuery(t *testing.T) {
+	defer leaktest.Check(t)()
 	defer copyist.Open(t).Close()
 
 	// Open database.
 	db, err := sql.Open("copyist_postgres", dataSourceName)
 	require.NoError(t, err)
+	defer db.Close()
 
 	rows, err := db.Query("SELECT name FROM customers WHERE id=$1", 1)
 	require.NoError(t, err)
@@ -122,11 +125,13 @@ func TestQuery(t *testing.T) {
 
 // TestInsert inserts a row and ensures that it's been committed.
 func TestInsert(t *testing.T) {
+	defer leaktest.Check(t)()
 	defer copyist.Open(t).Close()
 
 	// Open database.
 	db, err := sql.Open("copyist_postgres", dataSourceName)
 	require.NoError(t, err)
+	defer db.Close()
 
 	res, err := db.Exec("INSERT INTO customers VALUES ($1, $2)", 4, "Joel")
 	require.NoError(t, err)
@@ -148,11 +153,13 @@ func TestInsert(t *testing.T) {
 
 // TestDataTypes queries data types that are interesting for the PQ driver.
 func TestDataTypes(t *testing.T) {
+	defer leaktest.Check(t)()
 	defer copyist.Open(t).Close()
 
 	// Open database.
 	db, err := sql.Open("copyist_postgres", dataSourceName)
 	require.NoError(t, err)
+	defer db.Close()
 
 	// Construct table with many data types.
 	res, err := db.Exec(`
@@ -206,6 +213,8 @@ func TestDataTypes(t *testing.T) {
 // TestFloatLiterals tests the generation of float literal values, with and
 // without fractions and exponents.
 func TestFloatLiterals(t *testing.T) {
+	defer leaktest.Check(t)()
+
 	// Run twice in order to regress problem with float roundtripping.
 	t.Run("run 1", func(t *testing.T) {
 		defer copyist.Open(t).Close()
@@ -213,6 +222,7 @@ func TestFloatLiterals(t *testing.T) {
 		// Open database.
 		db, err := sql.Open("copyist_postgres", dataSourceName)
 		require.NoError(t, err)
+		defer db.Close()
 
 		rows, err := db.Query("SELECT 1::float, 1.1::float, 1e20::float")
 		require.NoError(t, err)
@@ -225,6 +235,7 @@ func TestFloatLiterals(t *testing.T) {
 		// Open database.
 		db, err := sql.Open("copyist_postgres", dataSourceName)
 		require.NoError(t, err)
+		defer db.Close()
 
 		rows, err := db.Query("SELECT 1::float, 1.1::float, 1e20::float")
 		require.NoError(t, err)
@@ -234,11 +245,13 @@ func TestFloatLiterals(t *testing.T) {
 
 // TestTxns commits and aborts transactions.
 func TestTxns(t *testing.T) {
+	defer leaktest.Check(t)()
 	defer copyist.Open(t).Close()
 
 	// Open database.
 	db, err := sql.Open("copyist_postgres", dataSourceName)
 	require.NoError(t, err)
+	defer db.Close()
 
 	// Commit a transaction.
 	tx, err := db.Begin()
@@ -273,9 +286,12 @@ func TestTxns(t *testing.T) {
 // TestPooling ensures that sessions are pooled in the same copyist session, but
 // not across copyist sessions.
 func TestPooling(t *testing.T) {
+	defer leaktest.Check(t)()
+
 	// Open database.
 	db, err := sql.Open("copyist_postgres", dataSourceName)
 	require.NoError(t, err)
+	defer db.Close()
 
 	var sessionID string
 
@@ -314,8 +330,10 @@ func TestPooling(t *testing.T) {
 
 // TestIndirectOpen calls copyist.Open indirectly in a helper function.
 func TestIndirectOpen(t *testing.T) {
+	defer leaktest.Check(t)()
 	db, closer := pqtest.IndirectOpen(t, dataSourceName)
 	defer closer.Close()
+	defer db.Close()
 
 	rows, err := db.Query("SELECT name FROM customers WHERE id=$1", 1)
 	require.NoError(t, err)
@@ -329,11 +347,13 @@ func TestIndirectOpen(t *testing.T) {
 
 // TestSqlx tests usage of the `sqlx` package with copyist.
 func TestSqlx(t *testing.T) {
+	defer leaktest.Check(t)()
 	defer copyist.Open(t).Close()
 
 	// Open database.
 	db, err := sqlx.Open("copyist_postgres", dataSourceName)
 	require.NoError(t, err)
+	defer db.Close()
 	tx, err := db.Beginx()
 	require.NoError(t, err)
 
@@ -353,11 +373,13 @@ func TestSqlx(t *testing.T) {
 }
 
 func TestOpenNamed(t *testing.T) {
+	defer leaktest.Check(t)()
 	defer copyist.OpenNamed("recording.txt", "TestOpenNamed").Close()
 
 	// Open database.
 	db, err := sql.Open("copyist_postgres", dataSourceName)
 	require.NoError(t, err)
+	defer db.Close()
 
 	rows, err := db.Query("SELECT 1")
 	require.NoError(t, err)

@@ -208,6 +208,10 @@ func OpenNamed(pathName, recordingName string) io.Closer {
 			f.AddRecording(recordingName, registered.recording)
 			f.WriteRecordingFile()
 			registered.recording = nil
+
+			// Clear any connection pooled during the recording process so that
+			// it doesn't leak.
+			registered.clearPooledConnection()
 			return nil
 		})
 	}
