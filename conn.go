@@ -70,6 +70,13 @@ func (c *proxyConn) ResetSession(ctx context.Context) error {
 
 // Prepare returns a prepared statement, bound to this connection.
 func (c *proxyConn) Prepare(query string) (driver.Stmt, error) {
+	return c.PrepareContext(context.Background(), query)
+}
+
+// PrepareContext returns a prepared statement, bound to this connection.
+// context is for the preparation of the statement,
+// it must not store the context within the statement itself.
+func (c *proxyConn) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
 	if IsRecording() {
 		// TODO(andyk): This is a hack that works around problems with the sqlx
 		// library's named args. sqlx uses a hardcoded list of driver names to
@@ -93,7 +100,14 @@ func (c *proxyConn) Prepare(query string) (driver.Stmt, error) {
 			query = sqlx.Rebind(bindType, query)
 		}
 
-		stmt, err := c.conn.Prepare(query)
+		var stmt driver.Stmt
+		var err error
+		if prepCtx, ok := c.conn.(driver.ConnPrepareContext); ok {
+			stmt, err = prepCtx.PrepareContext(ctx, query)
+		} else {
+			stmt, err = c.conn.Prepare(query)
+		}
+
 		c.driver.recording = append(
 			c.driver.recording, &record{Typ: ConnPrepare, Args: recordArgs{originalQuery, err}})
 		if err != nil {
@@ -133,8 +147,31 @@ func (c *proxyConn) Close() error {
 //
 // Deprecated: Drivers should implement ConnBeginTx instead (or additionally).
 func (c *proxyConn) Begin() (driver.Tx, error) {
+	return c.BeginTx(context.Background(), driver.TxOptions{})
+}
+
+// BeginTx starts and returns a new transaction.
+// If the context is canceled by the user the sql package will
+// call Tx.Rollback before discarding and closing the connection.
+//
+// This must check opts.Isolation to determine if there is a set
+// isolation level. If the driver does not support a non-default
+// level and one is set or if there is a non-default isolation level
+// that is not supported, an error must be returned.
+//
+// This must also check opts.ReadOnly to determine if the read-only
+// value is true to either set the read-only transaction property if supported
+// or return an error if it is not supported.
+func (c *proxyConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
 	if IsRecording() {
-		tx, err := c.conn.Begin()
+		var tx driver.Tx
+		var err error
+		if beginTx, ok := c.conn.(driver.ConnBeginTx); ok {
+			tx, err = beginTx.BeginTx(ctx, opts)
+		} else {
+			tx, err = c.conn.Begin()
+		}
+
 		c.driver.recording =
 			append(c.driver.recording, &record{Typ: ConnBegin, Args: recordArgs{err}})
 		if err != nil {

@@ -14,14 +14,14 @@
 
 package copyist
 
-import "database/sql/driver"
+import (
+	"context"
+	"database/sql/driver"
+	"errors"
+)
 
 // proxyStmt records and plays back calls to driver.Stmt methods.
 type proxyStmt struct {
-	// Stmt is a prepared statement. It is bound to a Conn and not
-	// used by multiple goroutines concurrently.
-	driver.Stmt
-
 	driver *proxyDriver
 	stmt   driver.Stmt
 }
@@ -63,8 +63,30 @@ func (s *proxyStmt) NumInput() int {
 //
 // Deprecated: Drivers should implement StmtExecContext instead (or additionally).
 func (s *proxyStmt) Exec(args []driver.Value) (driver.Result, error) {
+	return nil, errors.New("Stmt.Exec is deprecated and no longer supported")
+}
+
+// ExecContext executes a query that doesn't return rows, such
+// as an INSERT or UPDATE.
+//
+// ExecContext must honor the context timeout and return when it is canceled.
+func (s *proxyStmt) ExecContext(
+	ctx context.Context, args []driver.NamedValue,
+) (driver.Result, error) {
 	if IsRecording() {
-		res, err := s.stmt.Exec(args)
+		var res driver.Result
+		var err error
+		if execCtx, ok := s.stmt.(driver.StmtExecContext); ok {
+			res, err = execCtx.ExecContext(ctx, args)
+		} else {
+			var vals []driver.Value
+			vals, err = namedValueToValue(args)
+			if err != nil {
+				return nil, err
+			}
+			res, err = s.stmt.Exec(vals)
+		}
+
 		s.driver.recording =
 			append(s.driver.recording, &record{Typ: StmtExec, Args: recordArgs{err}})
 		if err != nil {
@@ -86,8 +108,30 @@ func (s *proxyStmt) Exec(args []driver.Value) (driver.Result, error) {
 //
 // Deprecated: Drivers should implement StmtQueryContext instead (or additionally).
 func (s *proxyStmt) Query(args []driver.Value) (driver.Rows, error) {
+	return nil, errors.New("Stmt.Query is deprecated and no longer supported")
+}
+
+// QueryContext executes a query that may return rows, such as a
+// SELECT.
+//
+// QueryContext must honor the context timeout and return when it is canceled.
+func (s *proxyStmt) QueryContext(
+	ctx context.Context, args []driver.NamedValue,
+) (driver.Rows, error) {
 	if IsRecording() {
-		rows, err := s.stmt.Query(args)
+		var rows driver.Rows
+		var err error
+		if stmtCtx, ok := s.stmt.(driver.StmtQueryContext); ok {
+			rows, err = stmtCtx.QueryContext(ctx, args)
+		} else {
+			var vals []driver.Value
+			vals, err = namedValueToValue(args)
+			if err != nil {
+				return nil, err
+			}
+			rows, err = s.stmt.Query(vals)
+		}
+
 		s.driver.recording =
 			append(s.driver.recording, &record{Typ: StmtQuery, Args: recordArgs{err}})
 		if err != nil {
@@ -96,10 +140,21 @@ func (s *proxyStmt) Query(args []driver.Value) (driver.Rows, error) {
 		return &proxyRows{driver: s.driver, rows: rows}, nil
 	}
 
-	record := s.driver.verifyRecord(StmtQuery)
-	err, _ := record.Args[0].(error)
+	rec := s.driver.verifyRecord(StmtQuery)
+	err, _ := rec.Args[0].(error)
 	if err != nil {
 		return nil, err
 	}
 	return &proxyRows{driver: s.driver}, nil
+}
+
+func namedValueToValue(named []driver.NamedValue) ([]driver.Value, error) {
+	dargs := make([]driver.Value, len(named))
+	for n, param := range named {
+		if len(param.Name) > 0 {
+			return nil, errors.New("sql: driver does not support the use of Named Parameters")
+		}
+		dargs[n] = param.Value
+	}
+	return dargs, nil
 }

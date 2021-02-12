@@ -171,21 +171,21 @@ all that.
 
 ## Limitations
 * Because of the way copyist works, it cannot be used with test and application
-code that accesses the database concurrently on multiple threads. This includes
-tests running with the "-parallel" testing flag, which enables tests in the same
-package to run in parallel. Multiple threads are problematic because the copyist
-driver code has no way to know which threads are associated with which tests.
-However, this limitation does not apply to running different test packages in
-parallel; in playback mode, this is both possible and highly encouraged!
-However, in recording mode, there may be problems if your tests conflict with
-one another at the database layer (i.e. by reading/modifying the same rows). The
-recommended pattern is to run test packages serially in recording mode, and then
-in parallel in playback mode.
+  code that accesses the database concurrently on multiple threads. This
+  includes tests running with the "-parallel" testing flag, which enables tests
+  in the same package to run in parallel. Multiple threads are problematic
+  because the copyist driver code has no way to know which threads are
+  associated with which tests. However, this limitation does not apply to
+  running different test packages in parallel; in playback mode, this is both
+  possible and highly encouraged! However, in recording mode, there may be
+  problems if your tests conflict with one another at the database layer (i.e.
+  by reading/modifying the same rows). The recommended pattern is to run test
+  packages serially in recording mode, and then in parallel in playback mode.
 
-* copyist currently supports only the Postgres `pq` driver. If you'd like to
-extend copyist to support other drivers, like MySql or SQLite, you're invited to
-submit a pull request.
+* copyist currently supports only the Postgres `pq` and `pgx stdlib` drivers. If 
+  you'd like to extend copyist to support other drivers, like MySql or SQLite,
+  you're invited to submit a pull request.
 
-* copyist does not implement every `sql` package driver interface and method. This
-may mean that copyist may not fully work with some drivers with more advanced
-features. Contributions in this area are welcome.
+* copyist does not implement every `sql` package driver interface and method.
+  This may mean that copyist may not fully work with some drivers with more
+  advanced features. Contributions in this area are welcome.
