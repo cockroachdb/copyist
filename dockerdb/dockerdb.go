@@ -40,7 +40,7 @@ func (c closer) Close() error {
 // an example invocation:
 //
 //   defer dockerdb.Start(
-//     "-p 26257:26257 cockroachdb/cockroach:v20.1.3 start --insecure",
+//     "-p 26257:26257 cockroachdb/cockroach:v20.2.4 start-single-node --insecure",
 //     "postgres",
 //     "postgresql://root@localhost:26257?sslmode=disable",
 //   ).Close()

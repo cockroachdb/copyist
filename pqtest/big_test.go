@@ -20,12 +20,15 @@ import (
 	"testing"
 
 	"github.com/cockroachdb/copyist"
+	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/require"
 )
 
 // TestBigRecording tests that copyist works with large recordings, and also
 // fails when the recording length > copyist.MaxRecordingSize.
 func TestBigRecording(t *testing.T) {
+	defer leaktest.Check(t)()
+
 	fn := func() {
 		defer copyist.Open(t).Close()
 		db, _ := sql.Open("copyist_postgres", dataSourceName)
