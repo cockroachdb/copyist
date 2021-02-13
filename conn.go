@@ -35,19 +35,20 @@ type proxyConn struct {
 	// connection.
 	driver.SessionResetter
 
-	// driver is a backpointer to the driver that created this connection.
+	// driver is a backpointer to the driver that created this connection, used
+	// for possibly pooling this connection when it's closed.
 	driver *proxyDriver
 
 	// conn is the wrapped "real" connection. It is nil if in playback mode.
 	conn driver.Conn
 
 	// name is the data source name passed to Driver.Open. Only connections with
-	// the same name can be reused from the pool.
+	// the same name can be reused from the driver's connection pool.
 	name string
 
-	// session is the id of the copyist session in which this connection was
-	// created. Connections with an older session id cannot be reused.
-	session int
+	// session is the copyist session in which this connection was created. This
+	// connection can only be reused within that session.
+	session *session
 }
 
 // ResetSession is called while a connection is in the connection
@@ -63,8 +64,8 @@ type proxyConn struct {
 func (c *proxyConn) ResetSession(ctx context.Context) error {
 	// Return driver.ErrBadConn in order to prevent the `sql` package from
 	// pooling this connection. Instead, it will call Close on this connection,
-	// at which point the connection can try to return itself to the connection
-	// pool.
+	// at which point the connection can try to return itself to the proxy
+	// driver's connection pool instead.
 	return driver.ErrBadConn
 }
 
@@ -108,20 +109,19 @@ func (c *proxyConn) PrepareContext(ctx context.Context, query string) (driver.St
 			stmt, err = c.conn.Prepare(query)
 		}
 
-		c.driver.recording = append(
-			c.driver.recording, &record{Typ: ConnPrepare, Args: recordArgs{originalQuery, err}})
+		currentSession.AddRecord(&record{Typ: ConnPrepare, Args: recordArgs{originalQuery, err}})
 		if err != nil {
 			return nil, err
 		}
-		return &proxyStmt{driver: c.driver, stmt: stmt}, nil
+		return &proxyStmt{stmt: stmt}, nil
 	}
 
-	record := c.driver.verifyRecordWithStringArg(ConnPrepare, query)
-	err, _ := record.Args[1].(error)
+	rec := currentSession.VerifyRecordWithStringArg(ConnPrepare, query)
+	err, _ := rec.Args[1].(error)
 	if err != nil {
 		return nil, err
 	}
-	return &proxyStmt{driver: c.driver}, nil
+	return &proxyStmt{}, nil
 }
 
 // Close invalidates and potentially stops any current
@@ -172,18 +172,17 @@ func (c *proxyConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.
 			tx, err = c.conn.Begin()
 		}
 
-		c.driver.recording =
-			append(c.driver.recording, &record{Typ: ConnBegin, Args: recordArgs{err}})
+		currentSession.AddRecord(&record{Typ: ConnBegin, Args: recordArgs{err}})
 		if err != nil {
 			return nil, err
 		}
-		return &proxyTx{driver: c.driver, tx: tx}, nil
+		return &proxyTx{tx: tx}, nil
 	}
 
-	record := c.driver.verifyRecord(ConnBegin)
-	err, _ := record.Args[0].(error)
+	rec := currentSession.VerifyRecord(ConnBegin)
+	err, _ := rec.Args[0].(error)
 	if err != nil {
 		return nil, err
 	}
-	return &proxyTx{driver: c.driver}, nil
+	return &proxyTx{}, nil
 }

@@ -22,8 +22,11 @@ import (
 
 // proxyStmt records and plays back calls to driver.Stmt methods.
 type proxyStmt struct {
-	driver *proxyDriver
-	stmt   driver.Stmt
+	// Stmt is a prepared statement. It is bound to a Conn and not
+	// used by multiple goroutines concurrently.
+	driver.Stmt
+
+	stmt driver.Stmt
 }
 
 // Close closes the statement.
@@ -49,13 +52,12 @@ func (s *proxyStmt) Close() error {
 func (s *proxyStmt) NumInput() int {
 	if IsRecording() {
 		num := s.stmt.NumInput()
-		s.driver.recording =
-			append(s.driver.recording, &record{Typ: StmtNumInput, Args: recordArgs{num}})
+		currentSession.AddRecord(&record{Typ: StmtNumInput, Args: recordArgs{num}})
 		return num
 	}
 
-	record := s.driver.verifyRecord(StmtNumInput)
-	return record.Args[0].(int)
+	rec := currentSession.VerifyRecord(StmtNumInput)
+	return rec.Args[0].(int)
 }
 
 // Exec executes a query that doesn't return rows, such
@@ -87,20 +89,19 @@ func (s *proxyStmt) ExecContext(
 			res, err = s.stmt.Exec(vals)
 		}
 
-		s.driver.recording =
-			append(s.driver.recording, &record{Typ: StmtExec, Args: recordArgs{err}})
+		currentSession.AddRecord(&record{Typ: StmtExec, Args: recordArgs{err}})
 		if err != nil {
 			return nil, err
 		}
-		return &proxyResult{driver: s.driver, res: res}, nil
+		return &proxyResult{res: res}, nil
 	}
 
-	record := s.driver.verifyRecord(StmtExec)
-	err, _ := record.Args[0].(error)
+	rec := currentSession.VerifyRecord(StmtExec)
+	err, _ := rec.Args[0].(error)
 	if err != nil {
 		return nil, err
 	}
-	return &proxyResult{driver: s.driver}, nil
+	return &proxyResult{}, nil
 }
 
 // Query executes a query that may return rows, such as a
@@ -132,20 +133,19 @@ func (s *proxyStmt) QueryContext(
 			rows, err = s.stmt.Query(vals)
 		}
 
-		s.driver.recording =
-			append(s.driver.recording, &record{Typ: StmtQuery, Args: recordArgs{err}})
+		currentSession.AddRecord(&record{Typ: StmtQuery, Args: recordArgs{err}})
 		if err != nil {
 			return nil, err
 		}
-		return &proxyRows{driver: s.driver, rows: rows}, nil
+		return &proxyRows{rows: rows}, nil
 	}
 
-	rec := s.driver.verifyRecord(StmtQuery)
+	rec := currentSession.VerifyRecord(StmtQuery)
 	err, _ := rec.Args[0].(error)
 	if err != nil {
 		return nil, err
 	}
-	return &proxyRows{driver: s.driver}, nil
+	return &proxyRows{}, nil
 }
 
 func namedValueToValue(named []driver.NamedValue) ([]driver.Value, error) {

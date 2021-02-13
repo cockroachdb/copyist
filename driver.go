@@ -19,7 +19,6 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
-	"fmt"
 )
 
 // recordArgs is an untyped list of arguments and/or return values to/from a SQL
@@ -57,12 +56,12 @@ type recording []*record
 // driver.ErrBadConn from the driver.SessionResetter.ResetSession method, and
 // instead pooling the connection in proxyDriver. In effect, copyist has a
 // simple connection pool of size 1. That "pool" is cleared when copyist.Open is
-// called, in order to ensure determinism. In addition, the driver maintains a
-// monotonically increasing sequence number that identifies the current copyist
-// session. Each time copyist.Open is called, the session is incremented.
-// Connections created by earlier sessions cannot be reused. This ensures that
-// copyist sessions are deterministic with regards to connection pooling - each
-// session starts fresh.
+// called, in order to ensure determinism. In addition, the global state
+// maintains a monotonically increasing sequence number that identifies the
+// current copyist session. Each time copyist.Open is called, the session is
+// incremented. Connections created by earlier sessions cannot be reused. This
+// ensures that copyist sessions are deterministic with regards to connection
+// pooling - each session starts fresh.
 type proxyDriver struct {
 	// Driver is the interface that must be implemented by a database
 	// driver.
@@ -72,11 +71,6 @@ type proxyDriver struct {
 	// instead of once per connection.
 	driver.Driver
 
-	// resetDB (if defined) resets the database to a clean, well-known state. It
-	// is only called in "recording" mode, each time that copyist.Open is called
-	// by a test.
-	resetDB ResetCallback
-
 	// wrapped is the underlying driver that is being "recorded". This is nil
 	// if in playback mode.
 	wrapped driver.Driver
@@ -84,22 +78,9 @@ type proxyDriver struct {
 	// driverName is the name of the wrapped driver.
 	driverName string
 
-	// recording stores the calls made to the driver so they can be played back
-	// later.
-	recording recording
-
-	// index is the current offset into the recording slice. It is used only
-	// during playback mode.
-	index int
-
 	// pooled caches a copyist connection for reuse. For more information, see
 	// the proxyDriver comment regarding connection pooling.
 	pooled *proxyConn
-
-	// session is a monotonically increasing sequence number that identifies the
-	// current copyist session. For more information, see the proxyDriver
-	// comment regarding connection pooling.
-	session int
 }
 
 // Open returns a new connection to the database.
@@ -112,6 +93,13 @@ type proxyDriver struct {
 // The returned connection is only used by one goroutine at a
 // time.
 func (d *proxyDriver) Open(name string) (driver.Conn, error) {
+	// Notify session that Open has been called so that it can do any needed
+	// per-session initialization.
+	if currentSession == nil {
+		panic(errors.New("copyist.Open was never called"))
+	}
+	currentSession.OnDriverOpen(d)
+
 	// Reuse pooled connection, if available and matching.
 	if conn := d.tryReuseConnection(name); conn != nil {
 		return conn, nil
@@ -130,19 +118,19 @@ func (d *proxyDriver) Open(name string) (driver.Conn, error) {
 		}
 
 		conn, err := d.wrapped.Open(name)
-		d.recording = append(d.recording, &record{Typ: DriverOpen, Args: recordArgs{err}})
+		currentSession.AddRecord(&record{Typ: DriverOpen, Args: recordArgs{err}})
 		if err != nil {
 			return nil, err
 		}
-		return &proxyConn{driver: d, conn: conn, name: name, session: d.session}, nil
+		return &proxyConn{driver: d, conn: conn, name: name, session: currentSession}, nil
 	}
 
-	record := d.verifyRecord(DriverOpen)
-	err, _ := record.Args[0].(error)
+	rec := currentSession.VerifyRecord(DriverOpen)
+	err, _ := rec.Args[0].(error)
 	if err != nil {
 		return nil, err
 	}
-	return &proxyConn{driver: d, name: name, session: d.session}, nil
+	return &proxyConn{driver: d, name: name, session: currentSession}, nil
 }
 
 // tryPoolConnection puts the given connection into the pool if:
@@ -159,8 +147,9 @@ func (d *proxyDriver) tryPoolConnection(c *proxyConn) bool {
 		return false
 	}
 
-	if d.session != c.session {
-		// Connection was opened during a previous copyist session.
+	if c.session != currentSession {
+		// Connection was opened during a previous copyist session, so can't
+		// pool it.
 		return false
 	}
 
@@ -191,42 +180,9 @@ func (d *proxyDriver) tryReuseConnection(name string) *proxyConn {
 }
 
 // clearPooledConnection closes and clears the pooled connection, if it exists.
-// This also increments the session id, so that any connections with a lower
-// session cannot be returned to the pool.
 func (d *proxyDriver) clearPooledConnection() {
 	if d.pooled != nil {
 		d.pooled.Close()
 		d.pooled = nil
 	}
-	d.session++
-}
-
-// verifyRecord returns one of the records in recording, failing with a nice
-// error if no such record exists.
-func (d *proxyDriver) verifyRecord(recordTyp recordType) *record {
-	if d.recording == nil {
-		panic(errors.New("copyist.Open was never called"))
-	}
-
-	if d.index >= len(d.recording) {
-		panic(fmt.Errorf("too many calls to %s - regenerate recording", recordTyp.String()))
-	}
-	record := d.recording[d.index]
-	if record.Typ != recordTyp {
-		panic(fmt.Errorf("unexpected call to %s - regenerate recording", recordTyp.String()))
-	}
-	d.index++
-	return record
-}
-
-// verifyRecordWithStringArg returns one of the records in recording, failing
-// with a nice error if no such record exists, or if its first argument does not
-// match the given string.
-func (d *proxyDriver) verifyRecordWithStringArg(recordTyp recordType, arg string) *record {
-	record := d.verifyRecord(recordTyp)
-	if record.Args[0].(string) != arg {
-		panic(fmt.Errorf("mismatched argument to %s, expected %s, got %s - regenerate recording",
-			recordTyp.String(), arg, record.Args[0].(string)))
-	}
-	return record
 }

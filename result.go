@@ -21,8 +21,7 @@ type proxyResult struct {
 	// Result is the result of a query execution.
 	driver.Result
 
-	driver *proxyDriver
-	res    driver.Result
+	res driver.Result
 }
 
 // LastInsertId returns the database's auto-generated ID
@@ -31,17 +30,16 @@ type proxyResult struct {
 func (r *proxyResult) LastInsertId() (int64, error) {
 	if IsRecording() {
 		id, err := r.res.LastInsertId()
-		r.driver.recording = append(
-			r.driver.recording, &record{Typ: ResultLastInsertId, Args: recordArgs{id, err}})
+		currentSession.AddRecord(&record{Typ: ResultLastInsertId, Args: recordArgs{id, err}})
 		return id, err
 	}
 
-	record := r.driver.verifyRecord(ResultLastInsertId)
-	err, _ := record.Args[1].(error)
+	rec := currentSession.VerifyRecord(ResultLastInsertId)
+	err, _ := rec.Args[1].(error)
 	if err != nil {
 		return 0, err
 	}
-	return record.Args[0].(int64), nil
+	return rec.Args[0].(int64), nil
 }
 
 // RowsAffected returns the number of rows affected by the
@@ -49,15 +47,14 @@ func (r *proxyResult) LastInsertId() (int64, error) {
 func (r *proxyResult) RowsAffected() (int64, error) {
 	if IsRecording() {
 		affected, err := r.res.RowsAffected()
-		r.driver.recording = append(
-			r.driver.recording, &record{Typ: ResultRowsAffected, Args: recordArgs{affected, err}})
+		currentSession.AddRecord(&record{Typ: ResultRowsAffected, Args: recordArgs{affected, err}})
 		return affected, err
 	}
 
-	record := r.driver.verifyRecord(ResultRowsAffected)
-	err, _ := record.Args[1].(error)
+	rec := currentSession.VerifyRecord(ResultRowsAffected)
+	err, _ := rec.Args[1].(error)
 	if err != nil {
 		return 0, err
 	}
-	return record.Args[0].(int64), nil
+	return rec.Args[0].(int64), nil
 }

@@ -29,6 +29,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	// PostgresDockerArgs starts up an instance of CRDB in order to test
+	// Postgres drivers.
+	// NOTE: Don't use default CRDB port in case another instance is already
+	// running.
+	PostgresDockerArgs = "-p 26888:26257 cockroachdb/cockroach:v20.2.4 start-single-node --insecure"
+
+	// PostgresDataSourceName is the string used to connect to CRDB in order to
+	// test Postgres drivers.
+	PostgresDataSourceName = "postgresql://root@localhost:26888?sslmode=disable"
+)
+
 // DataTypes contains many interesting data types that can be returned by SQL
 // drivers.
 type DataTypes struct {
@@ -59,7 +71,8 @@ DROP TABLE IF EXISTS datatypes;
 func RunAllTests(m *testing.M, driverName, dataSourceName, dockerArgs string) {
 	flag.Parse()
 
-	copyist.Register(driverName, func() {
+	copyist.Register(driverName)
+	copyist.SetSessionInit(func() {
 		db, err := sql.Open(driverName, dataSourceName)
 		if err != nil {
 			panic(err)
