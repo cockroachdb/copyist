@@ -26,23 +26,23 @@ import (
 // TestOpenWithoutRegister tests that copyist.Open panics if copyist.Register
 // was never called.
 func TestOpenWithoutRegister(t *testing.T) {
-	registered = nil
 	require.False(t, IsOpen())
 	require.PanicsWithError(t, "Register was not called", func() {
 		Open(t)
 	})
 }
 
-// TestMultipleRegisterCalls tests that copyist.Register panics when it is
-// called multiple times.
+// TestMultipleRegisterCalls tests that copyist.Register is an error when called
+// multiple times. Test that there is no error when calling with a different
+// driver.
 func TestMultipleRegisterCalls(t *testing.T) {
-	// Ignore any panic on first call in case another test has already
-	// registered the postgres driver.
-	registered = nil
-	ignorePanic(func() { Register("postgres", nil) })
-	require.PanicsWithError(t, "Register cannot be called more than once", func() {
-		Register("postgres", nil)
+	Register("multiple-register-driver-1")
+	require.PanicsWithError(t, "Register called twice for driver multiple-register-driver-1", func() {
+		Register("multiple-register-driver-1")
 	})
+
+	// Should be no error.
+	Register("multiple-register-driver-2")
 }
 
 // TestUnknownDriver tests that copyist.Driver.Open returns an error when an
@@ -53,7 +53,7 @@ func TestUnknownDriver(t *testing.T) {
 	visitedRecording = true
 
 	registered = nil
-	Register("unknown", nil)
+	Register("unknown")
 	Open(t)
 	db, err := sql.Open("copyist_unknown", "")
 	require.NoError(t, err)
@@ -68,14 +68,14 @@ func TestRecordingNotFound(t *testing.T) {
 	*recordFlag = false
 	visitedRecording = true
 
-	// Ignore any panic on first call in case another test has already
-	// registered the postgres driver.
-	registered = nil
-	ignorePanic(func() { Register("postgres", nil) })
+	Register("postgres")
+	Open(t)
+	db, err := sql.Open("copyist_postgres", "")
+	require.NoError(t, err)
 	require.PanicsWithError(
 		t,
 		`no recording exists with this name: TestRecordingNotFound`,
-		func() { Open(t) },
+		func() { db.Query("SELECT 1") },
 	)
 }
 

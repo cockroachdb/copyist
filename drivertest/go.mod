@@ -6,7 +6,7 @@ go 1.15
 // with testing driver dependencies and "replace" directives in their own go.mod
 // files.
 require (
-	github.com/cockroachdb/copyist v0.0.0-00000000000000-000000000000
+	github.com/cockroachdb/copyist v0.0.0-00010101000000-000000000000
 	github.com/fortytw2/leaktest v1.3.0
 	github.com/jackc/pgx/v4 v4.10.1
 	github.com/jmoiron/sqlx v1.3.1
