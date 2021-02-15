@@ -21,8 +21,7 @@ type proxyRows struct {
 	// Rows is an iterator over an executed query's results.
 	driver.Rows
 
-	driver *proxyDriver
-	rows   driver.Rows
+	rows driver.Rows
 }
 
 // Columns returns the names of the columns. The number of
@@ -32,13 +31,12 @@ type proxyRows struct {
 func (r *proxyRows) Columns() []string {
 	if IsRecording() {
 		cols := r.rows.Columns()
-		r.driver.recording = append(
-			r.driver.recording, &record{Typ: RowsColumns, Args: recordArgs{cols}})
+		currentSession.AddRecord(&record{Typ: RowsColumns, Args: recordArgs{cols}})
 		return cols
 	}
 
-	record := r.driver.verifyRecord(RowsColumns)
-	return record.Args[0].([]string)
+	rec := currentSession.VerifyRecord(RowsColumns)
+	return rec.Args[0].([]string)
 }
 
 // Close closes the rows iterator.
@@ -68,17 +66,16 @@ func (r *proxyRows) Next(dest []driver.Value) error {
 				destCopy[i] = deepCopyValue(dest[i])
 			}
 		}
-		r.driver.recording = append(
-			r.driver.recording, &record{Typ: RowsNext, Args: recordArgs{destCopy, err}})
+		currentSession.AddRecord(&record{Typ: RowsNext, Args: recordArgs{destCopy, err}})
 		return err
 	}
 
-	record := r.driver.verifyRecord(RowsNext)
-	err, _ := record.Args[1].(error)
+	rec := currentSession.VerifyRecord(RowsNext)
+	err, _ := rec.Args[1].(error)
 	if err != nil {
 		return err
 	}
-	vals := record.Args[0].([]driver.Value)
+	vals := rec.Args[0].([]driver.Value)
 	copy(dest, vals)
 	return nil
 }

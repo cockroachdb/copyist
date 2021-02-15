@@ -15,6 +15,8 @@
 package commontest_test
 
 import (
+	"github.com/stretchr/testify/require"
+	"os"
 	"testing"
 
 	"github.com/cockroachdb/copyist"
@@ -23,4 +25,8 @@ import (
 // TestNothing does not access the database at all.
 func TestNothing(t *testing.T) {
 	defer copyist.Open(t).Close()
+
+	// Verify that no file was created in testdata.
+	_, err := os.Stat("testdata/nothing_test.copyist")
+	require.True(t, os.IsNotExist(err))
 }

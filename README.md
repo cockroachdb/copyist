@@ -65,7 +65,7 @@ Below is the recommended test pattern for using copyist. The example shows how
 to unit test the `QueryName` function shown above. 
 ```go
 func init() {
-	copyist.Register("postgres", resetDB)
+	copyist.Register("postgres")
 }
 
 func TestQueryName(t *testing.T) {
@@ -111,19 +111,20 @@ COPYIST_RECORD=1 go test -run TestQueryName
 ``` 
 
 ## How do I reset the database between tests?
-The above section glossed over an important detail. When registering a driver
-for use with copyist, the second argument to `Register` is a callback function:
+You can call `SetSessionInit` to register a function that will clean your
+database:
 ```go
 func init() {
-    copyist.Register("postgres", resetDB)
+    copyist.Register("postgres")
+    copyist.SetSessionInit(resetDB)
 }
 ``` 
-If non-nil, this function will be called by copyist each time you call
-`copyist.Open` (typically at the beginning of each test), as long as copyist is
-running in "recording" mode. This reset function can do anything it likes, but
-usually it will run a SQL script against the database in order to reset it to a
-clean state, by dropping/creating tables, deleting data from tables, and/or
-inserting "fixture" data into tables that makes testing more convenient.
+The resetDB function will be called by copyist each time you call `copyist.Open`
+in your tests, as long as copyist is running in "recording" mode. The session
+initialization function can do anything it likes, but usually it will run a SQL
+script against the database in order to reset it to a clean state, by
+dropping/creating tables, deleting data from tables, and/or inserting "fixture"
+data into tables that makes testing more convenient.
 
 ## Troubleshooting
 #### I'm seeing "unexpected call" panics telling me to "regenerate recording"
@@ -149,7 +150,8 @@ in the case of an ORM sending a setup query, you might initialize it from your
 ```go
 func TestMain(m *testing.M) {
 	flag.Parse()
-	copyist.Register("postgres", resetDB)
+	copyist.Register("postgres")
+	copyist.SetSessionInit(resetDB)
 	closer := copyist.OpenNamed("test.copyist", "OpenCopyist")
 	pop.Connect("copyist-test")
 	closer.Close()
@@ -182,7 +184,7 @@ all that.
   by reading/modifying the same rows). The recommended pattern is to run test
   packages serially in recording mode, and then in parallel in playback mode.
 
-* copyist currently supports only the Postgres `pq` and `pgx stdlib` drivers. If 
+* copyist currently supports only the Postgres `pq` and `pgx stdlib` drivers. If
   you'd like to extend copyist to support other drivers, like MySql or SQLite,
   you're invited to submit a pull request.
 

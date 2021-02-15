@@ -21,20 +21,18 @@ type proxyTx struct {
 	// Tx is a transaction.
 	driver.Tx
 
-	driver *proxyDriver
-	tx     driver.Tx
+	tx driver.Tx
 }
 
 // Commit commits the transaction.
 func (t *proxyTx) Commit() error {
 	if IsRecording() {
 		err := t.tx.Commit()
-		t.driver.recording =
-			append(t.driver.recording, &record{Typ: TxCommit, Args: recordArgs{err}})
+		currentSession.AddRecord(&record{Typ: TxCommit, Args: recordArgs{err}})
 		return err
 	}
 
-	record := t.driver.verifyRecord(TxCommit)
+	record := currentSession.VerifyRecord(TxCommit)
 	err, _ := record.Args[0].(error)
 	return err
 }
@@ -43,12 +41,11 @@ func (t *proxyTx) Commit() error {
 func (t *proxyTx) Rollback() error {
 	if IsRecording() {
 		err := t.tx.Rollback()
-		t.driver.recording =
-			append(t.driver.recording, &record{Typ: TxRollback, Args: recordArgs{err}})
+		currentSession.AddRecord(&record{Typ: TxRollback, Args: recordArgs{err}})
 		return err
 	}
 
-	record := t.driver.verifyRecord(TxRollback)
+	record := currentSession.VerifyRecord(TxRollback)
 	err, _ := record.Args[0].(error)
 	return err
 }

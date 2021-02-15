@@ -62,32 +62,17 @@ func IsRecording() bool {
 // text format.
 var MaxRecordingSize = 1024 * 1024
 
-// ResetCallback types a function that is invoked during each call to
-// copyist.Open, when in recording mode, in order to reset the database to a
+// SessionInitCallback types a function that is invoked once per session for
+// each driver, when in recording mode, in order to initialize the database to a
 // clean, well-known state.
-type ResetCallback func()
+type SessionInitCallback func()
 
-// closer implements the io.Closer interface by invoking an arbitrary function
-// when Close is called.
-type closer func() error
+// sessionInit is called at the beginning of each new session, if not nil.
+var sessionInit SessionInitCallback
 
-// Close implements the io.Closer interface method.
-func (c closer) Close() error {
-	return c()
-}
-
-// registered is the proxy driver created during the registration process. It is
-// nil if Register has not yet been called.
-var registered *proxyDriver
-
-// IsOpen is true if a recording or playback session is currently in progress.
-// That is, Open or OpenNamed has been called, but Close has not yet been
-// called. This is useful when some tests use copyist and some don't, and
-// testing utility code wants to automatically determine whether to open a
-// connection using the copyist driver or the "real" driver.
-func IsOpen() bool {
-	return registered != nil && registered.recording != nil
-}
+// registered is the set of proxy drivers created via calls to Register, indexed
+// by driver name.
+var registered map[string]*proxyDriver
 
 // Register constructs a proxy driver that wraps the "real" driver of the given
 // name. Depending on the value of the "record" command-line flag, the
@@ -99,37 +84,46 @@ func IsOpen() bool {
 // opened for the first time.
 //
 // The Register method takes the name of the SQL driver to be wrapped (e.g.
-// "postgres"). The resetDB function (if defined) resets the database to a
-// clean, well-known state. It is only called in "recording" mode, each time
-// that copyist.Open is called by a test. There is no need to call it in
-// "playback" mode, as the database is not actually accessed at that time.
+// "postgres"). Below is an example of how copyist.Register should be invoked.
 //
-// Below is an example of how copyist.Register should be invoked.
+//   copyist.Register("postgres")
 //
-//   copyist.Register("postgres", resetDB)
-//
-// Note that Register can only be called once; subsequent attempts will fail
-// with an error. In addition, the same driver must be used with playback as was
-// was used during recording.
-func Register(driverName string, resetDB ResetCallback) {
-	if registered != nil {
-		panic(errors.New("Register cannot be called more than once"))
+// Note that Register can only be called once for a given driver; subsequent
+// attempts will fail with an error. In addition, the same copyist driver must
+// be used with playback as was was used during recording.
+func Register(driverName string) {
+	if registered == nil {
+		registered = make(map[string]*proxyDriver)
+	} else if _, ok := registered[driverName]; ok {
+		panic(fmt.Errorf("Register called twice for driver %s", driverName))
 	}
 
-	registered = &proxyDriver{resetDB: resetDB, driverName: driverName}
+	driver := &proxyDriver{driverName: driverName}
+	registered[driverName] = driver
 
 	// Register the copyist driver with the `sql` package.
-	sql.Register(copyistDriverName(driverName), registered)
+	sql.Register(copyistDriverName(driverName), driver)
+}
+
+// SetSessionInit sets the callback function that will be invoked at the
+// beginning of each copyist session. This can be used to initialize the test
+// database to a clean, well-known state.
+//
+// NOTE: The callback is only invoked in "recording" mode. There is no need to
+// call it in "playback" mode, as the database is not actually accessed at that
+// time.
+func SetSessionInit(callback SessionInitCallback) {
+	sessionInit = callback
 }
 
 // Open begins a recording or playback session, depending on the value of the
-// "record" command-line flag. If recording, then all calls to the registered
-// driver will be recorded and then saved in a copyist recording file that sits
+// "record" command-line flag. If recording, then all calls to registered
+// drivers will be recorded and then saved in a copyist recording file that sits
 // alongside the calling test file. If playing back, then the recording will
 // be fetched from that recording file. Here is a typical calling pattern:
 //
 //   func init() {
-//     copyist.Register("postgres", resetDB)
+//     copyist.Register("postgres")
 //   }
 //
 //   func TestMyStuff(t *testing.T) {
@@ -139,13 +133,14 @@ func Register(driverName string, resetDB ResetCallback) {
 //
 // The call to Open will initiate a new recording session. The deferred call to
 // Close will complete the recording session and write the recording to a file
-// alongside the test file, such as:
+// in the testdata/ directory, like:
 //
 //   mystuff_test.go
-//   mystuff_test_copyist.txt
+//   testdata/
+//     mystuff_test.copyist
 //
-// Each test (or sub-test) should record its own session so that they can be
-// executed independently.
+// Each test or sub-test that needs to be executed independently needs to record
+// its own session.
 func Open(t *testing.T) io.Closer {
 	if registered == nil {
 		panic(errors.New("Register was not called"))
@@ -177,70 +172,13 @@ func OpenNamed(pathName, recordingName string) io.Closer {
 		panic("Register was not called")
 	}
 
-	f := newRecordingFile(pathName)
+	// Start a new recording or playback session.
+	currentSession = newSession(pathName, recordingName)
 
-	if IsRecording() {
-		// Invoke resetDB callback, if defined.
-		if registered.resetDB != nil {
-			registered.resetDB()
-		}
-
-		// Clear any pooled connection in order to ensure determinism. For more
-		// information, see the proxyDriver comment regarding connection
-		// pooling. Call this after resetDB, in case developer is using copyist
-		// during the reset process (they shouldn't, but better to behave better
-		// if they do).
-		registered.clearPooledConnection()
-
-		// Reset recording (including any recording that occurred during the
-		// database reset).
-		registered.recording = recording{}
-		registered.index = 0
-
-		// Once the recording session has been closed, construct a new
-		// AddRecording call and add it to the body of the init function.
-		return closer(func() error {
-			// If no recording file exists, or there is parse error, then ignore
-			// the error and create a new file. Parse errors can happen when
-			// there's a Git merge conflict, and it's convenient to just
-			// silently regenerate the file.
-			f.Parse()
-			f.AddRecording(recordingName, registered.recording)
-			f.WriteRecordingFile()
-			registered.recording = nil
-
-			// Clear any connection pooled during the recording process so that
-			// it doesn't leak.
-			registered.clearPooledConnection()
-			return nil
-		})
-	}
-
-	// If recording file exists, parse it now.
-	if _, err := os.Stat(f.pathName); !os.IsNotExist(err) {
-		err := f.Parse()
-		if err != nil {
-			panic(fmt.Errorf("error parsing recording file: %v", err))
-		}
-	}
-
-	recording := f.GetRecording(recordingName)
-	if recording == nil {
-		panic(fmt.Errorf("no recording exists with this name: %v", recordingName))
-	}
-
-	// Clear any pooled connection in order to ensure determinism. For more
-	// information, see the proxyDriver comment regarding connection pooling.
-	registered.clearPooledConnection()
-
-	// Reset the registered driver with the recording to play back.
-	registered.recording = recording
-	registered.index = 0
-
-	// Close is a no-op for playback.
+	// Return a closer that will close the session when called.
 	return closer(func() error {
-		registered.recording = nil
-		registered.index = 0
+		currentSession.Close()
+		currentSession = nil
 		return nil
 	})
 }
@@ -267,4 +205,22 @@ func findTestFile() string {
 // of the wrapped driver's name.
 func copyistDriverName(driverName string) string {
 	return "copyist_" + driverName
+}
+
+// clearPooledConnections clears any pooled connection on all registered
+// drivers, in order to ensure determinism. For more information, see the
+// proxyDriver comment regarding connection pooling.
+func clearPooledConnections() {
+	for _, driver := range registered {
+		driver.clearPooledConnection()
+	}
+}
+
+// closer implements the io.Closer interface by invoking an arbitrary function
+// when Close is called.
+type closer func() error
+
+// Close implements the io.Closer interface method.
+func (c closer) Close() error {
+	return c()
 }

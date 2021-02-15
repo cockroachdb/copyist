@@ -22,14 +22,6 @@ import (
 	_ "github.com/jackc/pgx/v4/stdlib"
 )
 
-const (
-	driverName     = "pgx"
-	dataSourceName = "postgresql://root@localhost:26888?sslmode=disable"
-
-	// Don't use default CRDB port in case another instance is already running.
-	dockerArgs = "-p 26888:26257 cockroachdb/cockroach:v20.2.4 start-single-node --insecure"
-)
-
 // TestMain runs all PGX driver-specific tests. To use:
 //
 //   1. Run the tests with the "-record" command-line flag. This will run the
@@ -40,22 +32,22 @@ const (
 //      This tests playback of recording.
 //
 func TestMain(m *testing.M) {
-	commontest.RunAllTests(m, driverName, dataSourceName, dockerArgs)
+	commontest.RunAllTests(m, "pgx", commontest.PostgresDataSourceName, commontest.PostgresDockerArgs)
 }
 
 // TestQuery fetches a single customer.
 func TestQuery(t *testing.T) {
-	commontest.RunTestQuery(t, driverName, dataSourceName)
+	commontest.RunTestQuery(t, "pgx", commontest.PostgresDataSourceName)
 }
 
 // TestInsert inserts a row and ensures that it's been committed.
 func TestInsert(t *testing.T) {
-	commontest.RunTestInsert(t, driverName, dataSourceName)
+	commontest.RunTestInsert(t, "pgx", commontest.PostgresDataSourceName)
 }
 
 // TestDataTypes queries data types that are interesting for the SQL driver.
 func TestDataTypes(t *testing.T) {
-	commontest.RunTestDataTypes(t, driverName, dataSourceName)
+	commontest.RunTestDataTypes(t, "pgx", commontest.PostgresDataSourceName)
 }
 
 // TestFloatLiterals tests the generation of float literal values, with and
@@ -63,19 +55,19 @@ func TestDataTypes(t *testing.T) {
 func TestFloatLiterals(t *testing.T) {
 	// Run twice in order to regress problem with float round-tripping.
 	t.Run("run 1", func(t *testing.T) {
-		commontest.RunTestFloatLiterals(t, driverName, dataSourceName)
+		commontest.RunTestFloatLiterals(t, "pgx", commontest.PostgresDataSourceName)
 	})
 	t.Run("run 2", func(t *testing.T) {
-		commontest.RunTestFloatLiterals(t, driverName, dataSourceName)
+		commontest.RunTestFloatLiterals(t, "pgx", commontest.PostgresDataSourceName)
 	})
 }
 
 // TestTxns commits and aborts transactions.
 func TestTxns(t *testing.T) {
-	commontest.RunTestTxns(t, driverName, dataSourceName)
+	commontest.RunTestTxns(t, "pgx", commontest.PostgresDataSourceName)
 }
 
 // TestSqlx tests usage of the `sqlx` package with copyist.
 func TestSqlx(t *testing.T) {
-	commontest.RunTestSqlx(t, driverName, dataSourceName)
+	commontest.RunTestSqlx(t, "pgx", commontest.PostgresDataSourceName)
 }
