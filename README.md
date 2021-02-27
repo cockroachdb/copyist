@@ -85,7 +85,7 @@ before any of the tests), call the `copyist.Register` function. This function
 registers a new driver with Go's `sql` package with the name
 `copyist_<driverName>`. In any tests you'd like to record, add a
 `defer copyist.Open(t).Close()` statement. This statement begins a new recording
-session, and then generates playback code when `Close` is called at the end of
+session, and then generates a playback file when `Close` is called at the end of
 the test.
 
 copyist does need to know whether to run in "recording" mode or "playback" mode.
@@ -97,18 +97,17 @@ This will generate a new recording file in a `testdata` subdirectory, with the
 same name as the test file, but with a `.copyist` extension. For example, if the
 test file is called `app_test.go`, then copyist will generate a
 `testdata/app_test.copyist` file containing the recording for the
-`TestQueryName` test. Now try running the test a couple more times (the first
-time requires a recompile of the test, so will take longer):
+`TestQueryName` test. Now try running the test again without the `record` flag:
 ```
-go test -run TestQueryName
-go test -run TestQueryName
 go test -run TestQueryName
 ```
 It should now run significantly faster. You can also define the COPYIST_RECORD
 environment variable (to any value) to make copyist run in recording mode:
 ```
-COPYIST_RECORD=1 go test -run TestQueryName
+COPYIST_RECORD=1 go test ./...
 ``` 
+This is useful when running many test packages, some of which may not link to
+the copyist library, and therefore do not define the `record` flag.
 
 ## How do I reset the database between tests?
 You can call `SetSessionInit` to register a function that will clean your
