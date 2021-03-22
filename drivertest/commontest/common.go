@@ -17,7 +17,6 @@ package commontest
 import (
 	"database/sql"
 	"flag"
-	"github.com/fortytw2/leaktest"
 	"io"
 	"os"
 	"testing"
@@ -25,6 +24,7 @@ import (
 
 	"github.com/cockroachdb/copyist"
 	"github.com/cockroachdb/copyist/drivertest/dockerdb"
+	"github.com/fortytw2/leaktest"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
@@ -119,6 +119,31 @@ func RunTestQuery(t *testing.T, driverName, dataSourceName string) {
 		var name string
 		rows.Scan(&name)
 		require.Equal(t, "Andy", name)
+	}
+}
+
+// RunTestMultiStatement runs multiple SQL statements in a single Exec/Query
+// operation.
+func RunTestMultiStatement(t *testing.T, driverName, dataSourceName string) {
+	defer leaktest.Check(t)()
+	defer copyist.Open(t).Close()
+
+	// Open database.
+	db, err := sql.Open("copyist_"+driverName, dataSourceName)
+	require.NoError(t, err)
+	defer db.Close()
+
+	_, err = db.Exec("SELECT 1; SELECT 2;")
+	require.NoError(t, err)
+
+	rows, err := db.Query("SELECT 1; SELECT 2;")
+	require.NoError(t, err)
+	defer rows.Close()
+
+	for rows.Next() {
+		var cnt int
+		rows.Scan(&cnt)
+		require.Equal(t, 1, cnt)
 	}
 }
 

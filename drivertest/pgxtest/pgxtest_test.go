@@ -18,7 +18,6 @@ import (
 	"testing"
 
 	"github.com/cockroachdb/copyist/drivertest/commontest"
-
 	_ "github.com/jackc/pgx/v4/stdlib"
 )
 
@@ -38,6 +37,13 @@ func TestMain(m *testing.M) {
 // TestQuery fetches a single customer.
 func TestQuery(t *testing.T) {
 	commontest.RunTestQuery(t, "pgx", commontest.PostgresDataSourceName)
+}
+
+// TestMultiStatement runs multiple SQL statements in a single Exec/Query
+// operation.
+func TestMultiStatement(t *testing.T) {
+	t.Skip("the pgx driver does not support multiple SQL statements")
+	commontest.RunTestMultiStatement(t, "pgx", commontest.PostgresDataSourceName)
 }
 
 // TestInsert inserts a row and ensures that it's been committed.
