@@ -26,7 +26,9 @@ type recordType int32
 const (
 	_ recordType = iota
 	DriverOpen
+	ConnExec
 	ConnPrepare
+	ConnQuery
 	ConnBegin
 	StmtNumInput
 	StmtExec

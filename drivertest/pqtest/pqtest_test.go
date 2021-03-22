@@ -18,7 +18,6 @@ import (
 	"testing"
 
 	"github.com/cockroachdb/copyist/drivertest/commontest"
-
 	_ "github.com/lib/pq"
 )
 
@@ -38,6 +37,12 @@ func TestMain(m *testing.M) {
 // TestQuery fetches a single customer.
 func TestQuery(t *testing.T) {
 	commontest.RunTestQuery(t, "postgres", commontest.PostgresDataSourceName)
+}
+
+// TestMultiStatement runs multiple SQL statements in a single Exec/Query
+// operation.
+func TestMultiStatement(t *testing.T) {
+	commontest.RunTestMultiStatement(t, "postgres", commontest.PostgresDataSourceName)
 }
 
 // TestInsert inserts a row and ensures that it's been committed.

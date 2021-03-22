@@ -17,7 +17,6 @@ package commontest
 import (
 	"database/sql"
 	"flag"
-	"github.com/fortytw2/leaktest"
 	"io"
 	"os"
 	"testing"
@@ -25,6 +24,7 @@ import (
 
 	"github.com/cockroachdb/copyist"
 	"github.com/cockroachdb/copyist/drivertest/dockerdb"
+	"github.com/fortytw2/leaktest"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
@@ -101,7 +101,7 @@ func RunAllTests(m *testing.M, driverName, dataSourceName, dockerArgs string) {
 	os.Exit(code)
 }
 
-// RunTestQuery fetches a single customer.
+// RunTestQuery performs operations directly on a DB.
 func RunTestQuery(t *testing.T, driverName, dataSourceName string) {
 	defer leaktest.Check(t)()
 	defer copyist.Open(t).Close()
@@ -111,15 +111,81 @@ func RunTestQuery(t *testing.T, driverName, dataSourceName string) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	rows, err := db.Query("SELECT name FROM customers WHERE id=$1", 1)
+	t.Run("query", func(t *testing.T) {
+		rows, err := db.Query("SELECT name FROM customers WHERE id=$1", 1)
+		require.NoError(t, err)
+		defer rows.Close()
+
+		for rows.Next() {
+			var name string
+			require.NoError(t, rows.Scan(&name))
+			require.Equal(t, "Andy", name)
+		}
+
+		require.NoError(t, rows.Err())
+	})
+
+	t.Run("exec", func(t *testing.T) {
+		_, err = db.Exec("SELECT $1::int", 1)
+		require.NoError(t, err)
+	})
+
+	t.Run("prepare query", func(t *testing.T) {
+		stmt, err := db.Prepare("SELECT name FROM customers WHERE id=$1")
+		require.NoError(t, err)
+		defer stmt.Close()
+
+		rows, err := stmt.Query(1)
+		require.NoError(t, err)
+		defer rows.Close()
+
+		for rows.Next() {
+			var name string
+			require.NoError(t, rows.Scan(&name))
+			require.Equal(t, "Andy", name)
+		}
+
+		require.NoError(t, rows.Err())
+	})
+
+	t.Run("prepare exec", func(t *testing.T) {
+		stmt, err := db.Prepare("SELECT $1::int")
+		require.NoError(t, err)
+		defer stmt.Close()
+
+		_, err = stmt.Exec(1)
+		require.NoError(t, err)
+	})
+}
+
+// RunTestMultiStatement runs multiple SQL statements in a single Exec/Query
+// operation.
+func RunTestMultiStatement(t *testing.T, driverName, dataSourceName string) {
+	defer leaktest.Check(t)()
+	defer copyist.Open(t).Close()
+
+	// Open database.
+	db, err := sql.Open("copyist_"+driverName, dataSourceName)
+	require.NoError(t, err)
+	defer db.Close()
+
+	_, err = db.Exec("SELECT 1; SELECT 2;")
+	require.NoError(t, err)
+
+	rows, err := db.Query("SELECT 1; SELECT 2;")
 	require.NoError(t, err)
 	defer rows.Close()
 
 	for rows.Next() {
-		var name string
-		rows.Scan(&name)
-		require.Equal(t, "Andy", name)
+		var cnt int
+		require.NoError(t, rows.Scan(&cnt))
+		require.Equal(t, 1, cnt)
 	}
+
+	// NB: copyist doesn't currently support reading multiple result sets. We
+	// can't assert that rows.Err() == nil here as lib/pq/old also doesn't
+	// support multiple result sets and the second result set causes the
+	// connection to enter an error state.
 }
 
 // RunTestInsert inserts a row and ensures that it's been committed.
@@ -145,9 +211,11 @@ func RunTestInsert(t *testing.T, driverName, dataSourceName string) {
 
 	for rows.Next() {
 		var cnt int
-		rows.Scan(&cnt)
+		require.NoError(t, rows.Scan(&cnt))
 		require.Equal(t, 4, cnt)
 	}
+
+	require.NoError(t, rows.Err())
 }
 
 // RunTestDataTypes queries data types that are interesting for the SQL driver.
@@ -208,6 +276,7 @@ func RunTestDataTypes(t *testing.T, driverName, dataSourceName string) {
 		Uuid: []byte("00000000-0000-0000-0000-000000000000"),
 	}, out)
 
+	require.NoError(t, rows.Err())
 	rows.Close()
 }
 
@@ -225,6 +294,8 @@ func RunTestFloatLiterals(t *testing.T, driverName, dataSourceName string) {
 	rows, err := db.Query("SELECT 1::float, 1.1::float, 1e20::float")
 	require.NoError(t, err)
 	rows.Next()
+
+	require.NoError(t, rows.Err())
 }
 
 // RunTestTxns commits and aborts transactions.
@@ -262,9 +333,11 @@ func RunTestTxns(t *testing.T, driverName, dataSourceName string) {
 
 	for rows.Next() {
 		var cnt int
-		rows.Scan(&cnt)
+		require.NoError(t, rows.Scan(&cnt))
 		require.Equal(t, 4, cnt)
 	}
+
+	require.NoError(t, rows.Err())
 }
 
 // RunTestSqlx tests usage of the `sqlx` package with copyist.
@@ -287,10 +360,11 @@ func RunTestSqlx(t *testing.T, driverName, dataSourceName string) {
 
 	for rows.Next() {
 		var name string
-		rows.Scan(&name)
+		require.NoError(t, rows.Scan(&name))
 		require.Equal(t, "Andy", name)
 	}
 
+	require.NoError(t, rows.Err())
 	require.NoError(t, tx.Commit())
 }
 
