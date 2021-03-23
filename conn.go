@@ -69,6 +69,48 @@ func (c *proxyConn) ResetSession(ctx context.Context) error {
 	return driver.ErrBadConn
 }
 
+// ExecContext executes a query that doesn't return rows, such
+// as an INSERT or UPDATE.
+//
+// ExecContext must honor the context timeout and return when it is canceled.
+func (c *proxyConn) ExecContext(
+	ctx context.Context, query string, args []driver.NamedValue,
+) (driver.Result, error) {
+	if IsRecording() {
+		originalQuery := query
+		query = c.maybeRebind(query)
+
+		var res driver.Result
+		var err error
+		switch t := c.conn.(type) {
+		case driver.ExecerContext:
+			res, err = t.ExecContext(ctx, query, args)
+		case driver.Execer:
+			var vals []driver.Value
+			vals, err = namedValueToValue(args)
+			if err != nil {
+				return nil, err
+			}
+			res, err = t.Exec(query, vals)
+		default:
+			return nil, driver.ErrSkip
+		}
+
+		currentSession.AddRecord(&record{Typ: ConnExec, Args: recordArgs{originalQuery, err}})
+		if err != nil {
+			return nil, err
+		}
+		return &proxyResult{res: res}, nil
+	}
+
+	rec := currentSession.VerifyRecordWithStringArg(ConnExec, query)
+	err, _ := rec.Args[0].(error)
+	if err != nil {
+		return nil, err
+	}
+	return &proxyResult{}, nil
+}
+
 // Prepare returns a prepared statement, bound to this connection.
 func (c *proxyConn) Prepare(query string) (driver.Stmt, error) {
 	return c.PrepareContext(context.Background(), query)
@@ -79,27 +121,8 @@ func (c *proxyConn) Prepare(query string) (driver.Stmt, error) {
 // it must not store the context within the statement itself.
 func (c *proxyConn) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
 	if IsRecording() {
-		// TODO(andyk): This is a hack that works around problems with the sqlx
-		// library's named args. sqlx uses a hardcoded list of driver names to
-		// determine how to represent parameters in prepared queries. For
-		// example, postgres uses $1, mysql uses ?, sqlserver uses @, and so on.
-		// But since copyist defines a custom driver name, sqlx falls back to
-		// the default ?, which won't work with some databases. These issues
-		// describe the "custom driver" problem:
-		//
-		//   https://github.com/jmoiron/sqlx/issues/400
-		//   https://github.com/jmoiron/sqlx/issues/559
-		//
-		// Workaround this problem by rebinding the query if the bind type of
-		// the inner driver is different than the default ? character.
-		//
-		// NOTE: This doesn't work in cases where the parameter character is
-		// in a quoted string, etc. Unfortunately, there's not much to be done.
 		originalQuery := query
-		bindType := sqlx.BindType(c.driver.driverName)
-		if bindType != sqlx.QUESTION && strings.IndexByte(query, '?') != -1 {
-			query = sqlx.Rebind(bindType, query)
-		}
+		query = c.maybeRebind(query)
 
 		var stmt driver.Stmt
 		var err error
@@ -122,6 +145,48 @@ func (c *proxyConn) PrepareContext(ctx context.Context, query string) (driver.St
 		return nil, err
 	}
 	return &proxyStmt{}, nil
+}
+
+// QueryContext executes a query that may return rows, such as a
+// SELECT.
+//
+// QueryContext must honor the context timeout and return when it is canceled.
+func (c *proxyConn) QueryContext(
+	ctx context.Context, query string, args []driver.NamedValue,
+) (driver.Rows, error) {
+	if IsRecording() {
+		originalQuery := query
+		query = c.maybeRebind(query)
+
+		var rows driver.Rows
+		var err error
+		switch t := c.conn.(type) {
+		case driver.QueryerContext:
+			rows, err = t.QueryContext(ctx, query, args)
+		case driver.Queryer:
+			var vals []driver.Value
+			vals, err = namedValueToValue(args)
+			if err != nil {
+				return nil, err
+			}
+			rows, err = t.Query(query, vals)
+		default:
+			return nil, driver.ErrSkip
+		}
+
+		currentSession.AddRecord(&record{Typ: ConnQuery, Args: recordArgs{originalQuery, err}})
+		if err != nil {
+			return nil, err
+		}
+		return &proxyRows{rows: rows}, nil
+	}
+
+	rec := currentSession.VerifyRecordWithStringArg(ConnQuery, query)
+	err, _ := rec.Args[1].(error)
+	if err != nil {
+		return nil, err
+	}
+	return &proxyRows{}, nil
 }
 
 // Close invalidates and potentially stops any current
@@ -185,4 +250,27 @@ func (c *proxyConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.
 		return nil, err
 	}
 	return &proxyTx{}, nil
+}
+
+// TODO(andyk): This is a hack that works around problems with the sqlx
+// library's named args. sqlx uses a hardcoded list of driver names to
+// determine how to represent parameters in prepared queries. For example,
+// postgres uses $1, mysql uses ?, sqlserver uses @, and so on.  But since
+// copyist defines a custom driver name, sqlx falls back to the default ?,
+// which won't work with some databases. These issues describe the "custom
+// driver" problem:
+//
+//   https://github.com/jmoiron/sqlx/issues/400
+//   https://github.com/jmoiron/sqlx/issues/559
+//
+// Workaround this problem by rebinding the query if the bind type of the inner
+// driver is different than the default ? character.
+func (c *proxyConn) maybeRebind(query string) string {
+	// NOTE: This doesn't work in cases where the parameter character is
+	// in a quoted string, etc. Unfortunately, there's not much to be done.
+	bindType := sqlx.BindType(c.driver.driverName)
+	if bindType != sqlx.QUESTION && strings.IndexByte(query, '?') != -1 {
+		query = sqlx.Rebind(bindType, query)
+	}
+	return query
 }
