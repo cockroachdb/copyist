@@ -1,43 +1,44 @@
 1=DriverOpen	1:nil
-2=ConnExec	2:"INSERT INTO customers VALUES ($1, $2)"	1:nil
-3=ResultRowsAffected	4:1	1:nil
-4=ConnQuery	2:"SELECT COUNT(*) FROM customers"	1:nil
-5=RowsColumns	9:["count"]
-6=RowsNext	11:[4:4]	1:nil
-7=RowsNext	11:[]	7:EOF
-8=ConnQuery	2:"SELECT 1::float, 1.1::float, 1e20::float"	1:nil
-9=RowsColumns	9:["float8","float8","float8"]
-10=RowsNext	11:[5:1,5:1.1,5:1e+20]	1:nil
-11=ConnBegin	1:nil
-12=TxCommit	1:nil
-13=TxRollback	1:nil
-14=ConnExec	2:"\n\t\tCREATE TABLE datatypes\n\t\t(i INT, s TEXT, tz TIMESTAMPTZ, t TIMESTAMP, b BOOL,\n\t\t by BYTES, f FLOAT, d DECIMAL, fa FLOAT[], u UUID)\n\t"	1:nil
-15=ConnExec	2:"\n\t\tINSERT INTO datatypes VALUES\n\t\t\t(1, 'foo' || CHR(9) || CHR(10) || ' ,]', '2000-01-01T10:00:00Z', '2000-01-01T10:00:00Z',\n\t\t\t true, 'ABCD', 1.1, 100.1234, ARRAY(1.1, 1.2345678901234567),\n\t\t\t '8B78978B-7D8B-489E-8CA9-AC4BDC495A82'),\n\t\t\t(2, '', '2000-02-02T11:11:11-08:00', '2000-02-02T11:11:11-08:00', false,\n\t\t\t '', -1e10, -0.0, ARRAY(), '00000000-0000-0000-0000-000000000000')\n\t"	1:nil
-16=ResultRowsAffected	4:0	1:nil
-17=ConnQuery	2:"SELECT i, s, tz, t, b, by, f, d, fa, u FROM datatypes"	1:nil
-18=RowsColumns	9:["i","s","tz","t","b","by","f","d","fa","u"]
-19=RowsNext	11:[4:1,2:"foo\t\n ,]",8:2000-01-01T10:00:00Z,8:2000-01-01T10:00:00+00:00,6:true,10:QUJDRA,5:1.1,10:MTAwLjEyMzQ,10:ezEuMSwxLjIzNDU2Nzg5MDEyMzQ1Njd9,10:OGI3ODk3OGItN2Q4Yi00ODllLThjYTktYWM0YmRjNDk1YTgy]	1:nil
-20=RowsNext	11:[4:2,2:"",8:2000-02-02T19:11:11Z,8:2000-02-02T11:11:11+00:00,6:false,10:,5:-1e+10,10:MC4w,10:e30,10:MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAw]	1:nil
-21=ConnQuery	2:"SELECT name FROM customers WHERE id=$1"	1:nil
-22=RowsColumns	9:["name"]
-23=RowsNext	11:[2:"Andy"]	1:nil
-24=ConnExec	2:"SELECT $1::int"	1:nil
-25=ConnPrepare	2:"SELECT name FROM customers WHERE id=$1"	1:nil
-26=StmtNumInput	3:1
-27=StmtQuery	1:nil
-28=ConnPrepare	2:"SELECT $1::int"	1:nil
-29=StmtExec	1:nil
-30=ConnExec	2:"SELECT 1; SELECT 2;"	1:nil
-31=ConnQuery	2:"SELECT 1; SELECT 2;"	1:nil
-32=RowsColumns	9:["?column?"]
-33=RowsNext	11:[4:1]	1:nil
-34=ConnQuery	2:"SELECT name FROM customers WHERE id=?"	1:nil
+2=ConnQuery	2:"SELECT 1::float, 1.1::float, 1e20::float"	1:nil
+3=RowsColumns	9:["float8","float8","float8"]
+4=RowsNext	11:[5:1,5:1.1,5:1e+20]	1:nil
+5=ConnExec	2:"SELECT 1; SELECT 2;"	1:nil
+6=ConnQuery	2:"SELECT 1; SELECT 2;"	1:nil
+7=RowsColumns	9:["?column?"]
+8=RowsNext	11:[4:1]	1:nil
+9=RowsNext	11:[]	7:EOF
+10=ConnExec	2:"INSERT INTO customers VALUES ($1, $2)"	1:nil
+11=ResultRowsAffected	4:1	1:nil
+12=ConnQuery	2:"SELECT COUNT(*) FROM customers"	1:nil
+13=RowsColumns	9:["count"]
+14=RowsNext	11:[4:4]	1:nil
+15=ConnExec	2:"\n\t\tCREATE TABLE datatypes\n\t\t(i INT, s TEXT, tz TIMESTAMPTZ, t TIMESTAMP, b BOOL,\n\t\t by BYTES, f FLOAT, d DECIMAL, fa FLOAT[], u UUID)\n\t"	1:nil
+16=ConnExec	2:"\n\t\tINSERT INTO datatypes VALUES\n\t\t\t(1, 'foo' || CHR(9) || CHR(10) || ' ,]', '2000-01-01T10:00:00Z', '2000-01-01T10:00:00Z',\n\t\t\t true, 'ABCD', 1.1, 100.1234, ARRAY(1.1, 1.2345678901234567),\n\t\t\t '8B78978B-7D8B-489E-8CA9-AC4BDC495A82'),\n\t\t\t(2, '', '2000-02-02T11:11:11-08:00', '2000-02-02T11:11:11-08:00', false,\n\t\t\t '', -1e10, -0.0, ARRAY(), '00000000-0000-0000-0000-000000000000')\n\t"	1:nil
+17=ResultRowsAffected	4:0	1:nil
+18=ConnQuery	2:"SELECT i, s, tz, t, b, by, f, d, fa, u FROM datatypes"	1:nil
+19=RowsColumns	9:["i","s","tz","t","b","by","f","d","fa","u"]
+20=RowsNext	11:[4:1,2:"foo\t\n ,]",8:2000-01-01T10:00:00Z,8:2000-01-01T10:00:00+00:00,6:true,10:QUJDRA,5:1.1,10:MTAwLjEyMzQ,10:ezEuMSwxLjIzNDU2Nzg5MDEyMzQ1Njd9,10:OGI3ODk3OGItN2Q4Yi00ODllLThjYTktYWM0YmRjNDk1YTgy]	1:nil
+21=RowsNext	11:[4:2,2:"",8:2000-02-02T19:11:11Z,8:2000-02-02T11:11:11+00:00,6:false,10:,5:-1e+10,10:MC4w,10:e30,10:MDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAw]	1:nil
+22=ConnBegin	1:nil
+23=TxCommit	1:nil
+24=TxRollback	1:nil
+25=ConnQuery	2:"SELECT name FROM customers WHERE id=$1"	1:nil
+26=RowsColumns	9:["name"]
+27=RowsNext	11:[2:"Andy"]	1:nil
+28=ConnExec	2:"SELECT $1::int"	1:nil
+29=ConnExec	2:"SELECT * FROM nonexistent"	7:pq: relation "nonexistent" does not exist
+30=ConnPrepare	2:"SELECT name FROM customers WHERE id=$1"	1:nil
+31=StmtNumInput	3:1
+32=StmtQuery	1:nil
+33=ConnPrepare	2:"SELECT $1::int"	1:nil
+34=StmtExec	1:nil
+35=ConnQuery	2:"SELECT name FROM customers WHERE id=?"	1:nil
 
-"TestFloatLiterals/run_2"=1,8,9,10
-"TestTxns"=1,11,2,12,11,2,13,4,5,6,7
-"TestDataTypes"=1,14,15,16,17,18,19,20
-"TestQuery"=1,21,22,23,7,24,25,25,26,27,22,23,7,28,28,26,29
-"TestFloatLiterals/run_1"=1,8,9,10
-"TestMultiStatement"=1,30,31,32,33,7
-"TestSqlx"=1,11,34,22,23,7,12
-"TestInsert"=1,2,3,4,5,6,7
+"TestSqlx"=1,22,35,26,27,9,23
+"TestFloatLiterals/run_1"=1,2,3,4
+"TestMultiStatement"=1,5,6,7,8,9
+"TestInsert"=1,10,11,12,13,14,9
+"TestFloatLiterals/run_2"=1,2,3,4
+"TestDataTypes"=1,15,16,17,18,19,20,21
+"TestTxns"=1,22,10,23,22,10,24,12,13,14,9
+"TestQuery"=1,25,26,27,9,28,29,30,30,31,32,26,27,9,33,33,31,34
