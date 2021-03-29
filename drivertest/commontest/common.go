@@ -130,6 +130,11 @@ func RunTestQuery(t *testing.T, driverName, dataSourceName string) {
 		require.NoError(t, err)
 	})
 
+	t.Run("exec error", func(t *testing.T) {
+		_, err = db.Exec("SELECT * FROM nonexistent", 1)
+		require.Error(t, err)
+	})
+
 	t.Run("prepare query", func(t *testing.T) {
 		stmt, err := db.Prepare("SELECT name FROM customers WHERE id=$1")
 		require.NoError(t, err)

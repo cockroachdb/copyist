@@ -104,7 +104,7 @@ func (c *proxyConn) ExecContext(
 	}
 
 	rec := currentSession.VerifyRecordWithStringArg(ConnExec, query)
-	err, _ := rec.Args[0].(error)
+	err, _ := rec.Args[1].(error)
 	if err != nil {
 		return nil, err
 	}
