@@ -114,9 +114,10 @@ func (s *session) VerifyRecordWithStringArg(recordTyp recordType, arg string) *r
 	rec := s.VerifyRecord(recordTyp)
 	if rec.Args[0].(string) != arg {
 		panic(fmt.Errorf(
-			"mismatched argument to %s, expected %s, got %s\n\n"+
+			"while replaying %s\n\n"+
+				"mismatched argument to %s, expected %s, got %s\n\n"+
 				"Do you need to regenerate the recording with the -record flag?",
-			recordTyp.String(), arg, rec.Args[0].(string)))
+			s.recordingName, recordTyp.String(), arg, rec.Args[0].(string)))
 	}
 	return rec
 }
@@ -126,14 +127,18 @@ func (s *session) VerifyRecordWithStringArg(recordTyp recordType, arg string) *r
 func (s *session) VerifyRecord(recordTyp recordType) *record {
 	if s.index >= len(s.recording) {
 		panic(fmt.Errorf(
-			"too many calls to %s\n\n"+
-				"Do you need to regenerate the recording with the -record flag?", recordTyp.String()))
+			"while replaying %s\n\n"+
+				"too many calls to %s\n\n"+
+				"Do you need to regenerate the recording with the -record flag?",
+			s.recordingName, recordTyp.String()))
 	}
 	rec := s.recording[s.index]
 	if rec.Typ != recordTyp {
 		panic(fmt.Errorf(
-			"unexpected call to %s\n\n"+
-				"Do you need to regenerate the recording with the -record flag?", recordTyp.String()))
+			"while replaying %s\n\n"+
+				"unexpected call to %s\n\n"+
+				"Do you need to regenerate the recording with the -record flag?",
+			s.recordingName, recordTyp.String()))
 	}
 	s.index++
 	return rec
