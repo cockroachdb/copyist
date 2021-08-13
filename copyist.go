@@ -25,6 +25,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/jmoiron/sqlx"
 )
 
 // recordFlag instructs copyist to record all calls to the registered driver, if
@@ -98,11 +100,20 @@ func Register(driverName string) {
 		panic(fmt.Errorf("Register called twice for driver %s", driverName))
 	}
 
-	driver := &proxyDriver{driverName: driverName}
-	registered[driverName] = driver
+	copyistDriver := &proxyDriver{driverName: driverName}
+	registered[driverName] = copyistDriver
+
+	// sqlx uses a default list of driver names to determine how to represent
+	// parameters in prepared queries. For example, postgres uses $1, mysql
+	// uses ?, sqlserver uses @, and so on.  But since copyist defines a custom
+	// driver name, sqlx falls back to the default ?, which won't work with some
+	// databases. Register the copyist driver name with sqlx and tell it to use
+	// the bind type of the underlying driver rather than the default ?.
+	copyistDriverName := copyistDriverName(driverName)
+	sqlx.BindDriver(copyistDriverName, sqlx.BindType(driverName))
 
 	// Register the copyist driver with the `sql` package.
-	sql.Register(copyistDriverName(driverName), driver)
+	sql.Register(copyistDriverName, copyistDriver)
 }
 
 // SetSessionInit sets the callback function that will be invoked at the
