@@ -15,9 +15,16 @@
 package pqtest
 
 import (
+	"database/sql"
 	"testing"
 
+	"github.com/lib/pq"
+
+	"github.com/cockroachdb/copyist"
 	"github.com/cockroachdb/copyist/drivertest/commontest"
+	"github.com/fortytw2/leaktest"
+	"github.com/stretchr/testify/require"
+
 	_ "github.com/lib/pq"
 )
 
@@ -75,4 +82,23 @@ func TestTxns(t *testing.T) {
 // TestSqlx tests usage of the `sqlx` package with copyist.
 func TestSqlx(t *testing.T) {
 	commontest.RunTestSqlx(t, "postgres", commontest.PostgresDataSourceName)
+}
+
+// TestPqError tests that pq.Error objects are round-tripped.
+func TestPqError(t *testing.T) {
+	defer leaktest.Check(t)()
+	defer copyist.Open(t).Close()
+
+	// Open database.
+	db, err := sql.Open("copyist_postgres", commontest.PostgresDataSourceName)
+	require.NoError(t, err)
+	defer db.Close()
+
+	_, err = db.Exec("bad query")
+	pqErr, ok := err.(*pq.Error)
+	require.True(t, ok)
+	require.Equal(t, "ERROR", pqErr.Severity)
+	require.Equal(t, pq.ErrorCode("42601"), pqErr.Code)
+	require.Equal(t, "at or near \"bad\": syntax error", pqErr.Message)
+	require.Equal(t, "source SQL:\nbad query\n^", pqErr.Detail)
 }

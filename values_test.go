@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 )
 
@@ -52,6 +53,25 @@ func TestRoundtrip(t *testing.T) {
 			parseTime("2020-08-06T15:20:25.831116+00:00"),
 			[]driver.Value{8, parseTime("2020-08-06T15:20:25.831116+00:00"), -8},
 			"\n\t",
+		}},
+		{"format pq.Error value", &pq.Error{
+			Severity:         pq.Efatal,
+			Code:             pq.ErrorCode("53200"),
+			Message:          "out of memory",
+			Detail:           "some detail",
+			Hint:             "some hint",
+			Position:         "123",
+			InternalPosition: "456",
+			InternalQuery:    "some query",
+			Where:            "somewhere",
+			Schema:           "some schema",
+			Table:            "some table",
+			Column:           "some column",
+			DataTypeName:     "some datatype",
+			Constraint:       "some constraint",
+			File:             "some file",
+			Line:             "789",
+			Routine:          "some routine",
 		}},
 	}
 
