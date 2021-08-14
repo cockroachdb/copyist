@@ -12,14 +12,14 @@
 // implied. See the License for the specific language governing
 // permissions and limitations under the License.
 
-package commontest_test
+package drivertest_test
 
 import (
 	"database/sql"
 	"testing"
 
 	"github.com/cockroachdb/copyist"
-	"github.com/cockroachdb/copyist/drivertest/commontest"
+	"github.com/cockroachdb/copyist/drivertest"
 	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/require"
 
@@ -36,7 +36,7 @@ const (
 )
 
 func TestMain(m *testing.M) {
-	commontest.RunAllTests(m, driverName, dataSourceName, dockerArgs)
+	drivertest.RunAllTests(m, driverName, dataSourceName, dockerArgs)
 }
 
 // TestIndirectOpen calls copyist.Open indirectly in a helper function.

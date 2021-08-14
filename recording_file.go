@@ -20,6 +20,7 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
+	"github.com/cockroachdb/copyist/values"
 	"hash"
 	"io/ioutil"
 	"os"
@@ -320,7 +321,7 @@ func (f *recordingFile) formatRecord(record *record) string {
 	f.scratch.WriteString(record.Typ.String())
 	for _, arg := range record.Args {
 		f.scratch.WriteByte('\t')
-		f.scratch.WriteString(formatValueWithType(arg))
+		f.scratch.WriteString(values.FormatWithType(arg))
 	}
 	return f.scratch.String()
 }
@@ -345,7 +346,7 @@ func (f *recordingFile) parseRecord(recordNum int) *record {
 	// format.
 	rec := &record{Typ: recType}
 	for i := 1; i < len(fields); i++ {
-		val, err := parseValueWithType(fields[i])
+		val, err := values.ParseWithType(fields[i])
 		if err != nil {
 			panic(fmt.Errorf("error parsing %s: %v", fields[i], err))
 		}
@@ -364,4 +365,14 @@ func (f *recordingFile) hashStr(s string) hashValue {
 	var val hashValue
 	copy(val[:], f.md5Hasher.Sum(nil))
 	return val
+}
+
+// splitString is a wrapper around strings.Split that returns an empty slice in
+// the case where the input string is empty. strings.Split returns a slice with
+// one empty string instead.
+func splitString(s, sep string) []string {
+	if s == "" {
+		return []string{}
+	}
+	return strings.Split(s, sep)
 }

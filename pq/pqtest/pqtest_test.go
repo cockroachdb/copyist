@@ -16,13 +16,14 @@ package pqtest
 
 import (
 	"database/sql"
-	"github.com/cockroachdb/copyist"
-	"github.com/fortytw2/leaktest"
-	"github.com/stretchr/testify/require"
 	"testing"
 
-	"github.com/cockroachdb/copyist/drivertest/commontest"
-	_ "github.com/lib/pq"
+	"github.com/cockroachdb/copyist"
+	"github.com/cockroachdb/copyist/drivertest"
+	"github.com/fortytw2/leaktest"
+	"github.com/stretchr/testify/require"
+
+	_ "github.com/cockroachdb/copyist/pq"
 )
 
 // TestMain runs all PQ driver-specific tests. To use:
@@ -35,28 +36,28 @@ import (
 //      This tests playback of recording.
 //
 func TestMain(m *testing.M) {
-	commontest.RunAllTests(m, "postgres", commontest.PostgresDataSourceName, commontest.PostgresDockerArgs)
+	drivertest.RunAllTests(m, "postgres", drivertest.PostgresDataSourceName, drivertest.PostgresDockerArgs)
 }
 
 // TestQuery fetches a single customer.
 func TestQuery(t *testing.T) {
-	commontest.RunTestQuery(t, "postgres", commontest.PostgresDataSourceName)
+	drivertest.RunTestQuery(t, "postgres", drivertest.PostgresDataSourceName)
 }
 
 // TestMultiStatement runs multiple SQL statements in a single Exec/Query
 // operation.
 func TestMultiStatement(t *testing.T) {
-	commontest.RunTestMultiStatement(t, "postgres", commontest.PostgresDataSourceName)
+	drivertest.RunTestMultiStatement(t, "postgres", drivertest.PostgresDataSourceName)
 }
 
 // TestInsert inserts a row and ensures that it's been committed.
 func TestInsert(t *testing.T) {
-	commontest.RunTestInsert(t, "postgres", commontest.PostgresDataSourceName)
+	drivertest.RunTestInsert(t, "postgres", drivertest.PostgresDataSourceName)
 }
 
 // TestDataTypes queries data types that are interesting for the SQL driver.
 func TestDataTypes(t *testing.T) {
-	commontest.RunTestDataTypes(t, "postgres", commontest.PostgresDataSourceName)
+	drivertest.RunTestDataTypes(t, "postgres", drivertest.PostgresDataSourceName)
 }
 
 // TestFloatLiterals tests the generation of float literal values, with and
@@ -64,21 +65,21 @@ func TestDataTypes(t *testing.T) {
 func TestFloatLiterals(t *testing.T) {
 	// Run twice in order to regress problem with float round-tripping.
 	t.Run("run 1", func(t *testing.T) {
-		commontest.RunTestFloatLiterals(t, "postgres", commontest.PostgresDataSourceName)
+		drivertest.RunTestFloatLiterals(t, "postgres", drivertest.PostgresDataSourceName)
 	})
 	t.Run("run 2", func(t *testing.T) {
-		commontest.RunTestFloatLiterals(t, "postgres", commontest.PostgresDataSourceName)
+		drivertest.RunTestFloatLiterals(t, "postgres", drivertest.PostgresDataSourceName)
 	})
 }
 
 // TestTxns commits and aborts transactions.
 func TestTxns(t *testing.T) {
-	commontest.RunTestTxns(t, "postgres", commontest.PostgresDataSourceName)
+	drivertest.RunTestTxns(t, "postgres", drivertest.PostgresDataSourceName)
 }
 
 // TestSqlx tests usage of the `sqlx` package with copyist.
 func TestSqlx(t *testing.T) {
-	commontest.RunTestSqlx(t, "postgres", commontest.PostgresDataSourceName)
+	drivertest.RunTestSqlx(t, "postgres", drivertest.PostgresDataSourceName)
 }
 
 // TestPqError tests that pq.Error objects are
@@ -87,7 +88,7 @@ func TestPqError(t *testing.T) {
 	defer copyist.Open(t).Close()
 
 	// Open database.
-	db, err := sql.Open("copyist_postgres", commontest.PostgresDataSourceName)
+	db, err := sql.Open("copyist_postgres", drivertest.PostgresDataSourceName)
 	require.NoError(t, err)
 	defer db.Close()
 

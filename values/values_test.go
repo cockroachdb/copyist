@@ -12,12 +12,11 @@
 // implied. See the License for the specific language governing
 // permissions and limitations under the License.
 
-package copyist
+package values
 
 import (
 	"database/sql/driver"
 	"errors"
-	"github.com/lib/pq"
 	"io"
 	"math"
 	"testing"
@@ -54,31 +53,12 @@ func TestRoundtrip(t *testing.T) {
 			[]driver.Value{8, parseTime("2020-08-06T15:20:25.831116+00:00"), -8},
 			"\n\t",
 		}},
-		{"format pq.Error value", &pq.Error{
-			Severity: pq.Efatal,
-			Code: pq.ErrorCode("53200"),
-			Message: "out of memory",
-			Detail: "some detail",
-			Hint: "some hint",
-			Position: "123",
-			InternalPosition: "456",
-			InternalQuery: "some query",
-			Where: "somewhere",
-			Schema: "some schema",
-			Table: "some table",
-			Column: "some column",
-			DataTypeName: "some datatype",
-			Constraint: "some constraint",
-			File: "some file",
-			Line: "789",
-			Routine: "some routine",
-		}},
 	}
 
 	for _, cas := range cases {
 		t.Run(cas.name, func(t *testing.T) {
-			s := formatValueWithType(cas.val)
-			val, err := parseValueWithType(s)
+			s := FormatWithType(cas.val)
+			val, err := ParseWithType(s)
 			require.NoError(t, err)
 			require.Equal(t, cas.val, val)
 		})

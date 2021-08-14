@@ -14,7 +14,11 @@
 
 package copyist
 
-import "database/sql/driver"
+import (
+	"database/sql/driver"
+
+	"github.com/cockroachdb/copyist/values"
+)
 
 // proxyRows records and plays back calls to driver.Rows methods.
 type proxyRows struct {
@@ -63,7 +67,7 @@ func (r *proxyRows) Next(dest []driver.Value) error {
 		if err == nil {
 			destCopy = make([]driver.Value, len(dest))
 			for i := range dest {
-				destCopy[i] = deepCopyValue(dest[i])
+				destCopy[i] = values.DeepCopyValue(dest[i])
 			}
 		}
 		currentSession.AddRecord(&record{Typ: RowsNext, Args: recordArgs{destCopy, err}})
