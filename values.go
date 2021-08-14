@@ -25,6 +25,9 @@ import (
 	"strings"
 	"text/scanner"
 	"time"
+
+	"github.com/jackc/pgproto3"
+	"github.com/lib/pq"
 )
 
 // valueType is an enumeration of all types that can be round-tripped to and
@@ -33,7 +36,8 @@ import (
 // support for any types that are not already handled:
 //
 //   1. Add enumeration value below. Use an explicit numeric value so that its
-//      easier to look up a type by number.
+//      easier to look up a type by number. For a new driver, leave plenty of
+//      space between numeric runs so that previous drivers can add more types.
 //   2. Add a case to the formatValueWithType switch.
 //   3. Add a case to the parseValueWithType switch.
 //   4. Add a case to the deepCopyValue switch if the value's content might be
@@ -54,6 +58,9 @@ const (
 	stringSliceType valueType = 9
 	byteSliceType   valueType = 10
 	valueSliceType  valueType = 11
+
+	// Custom pq types.
+	pqErrorType valueType = 100
 )
 
 // formatValueWithType converts the given value into a formatted string suitable
@@ -81,6 +88,11 @@ func formatValueWithType(val interface{}) string {
 	}
 
 	switch t := val.(type) {
+	// Custom pq types.
+	case *pq.Error:
+		return fmt.Sprintf("%d:%s", pqErrorType, formatPqError(t))
+
+	// Built-in Go types.
 	case string:
 		return fmt.Sprintf("%d:%s", stringType, strconv.Quote(t))
 	case int:
@@ -92,7 +104,7 @@ func formatValueWithType(val interface{}) string {
 	case bool:
 		return fmt.Sprintf("%d:%v", boolType, t)
 	case error:
-		return fmt.Sprintf("%d:%s", errorType, t.Error())
+		return fmt.Sprintf("%d:%s", errorType, strconv.Quote(t.Error()))
 	case time.Time:
 		// time.Format normalizes the +00:00 UTC timezone into "Z". This causes
 		// the recorded output to differ from the "real" driver output. Use a
@@ -132,6 +144,38 @@ func formatValueWithType(val interface{}) string {
 	}
 }
 
+// formatPqError returns a lib/pq error as a string that is suitable for
+// inclusion in a copyist recording file. It does this by using the pgproto3
+// library to format the error using the Postgres wire protocol, and then
+// returns it as a quoted string.
+func formatPqError(pqErr *pq.Error) string {
+	resp := pgproto3.ErrorResponse{
+		Severity:         pqErr.Severity,
+		Code:             string(pqErr.Code),
+		Message:          pqErr.Message,
+		Detail:           pqErr.Detail,
+		Hint:             pqErr.Hint,
+		Position:         stringToInt32OrZero(pqErr.Position),
+		InternalPosition: stringToInt32OrZero(pqErr.InternalPosition),
+		InternalQuery:    pqErr.InternalQuery,
+		Where:            pqErr.Where,
+		SchemaName:       pqErr.Schema,
+		TableName:        pqErr.Table,
+		ColumnName:       pqErr.Column,
+		DataTypeName:     pqErr.DataTypeName,
+		ConstraintName:   pqErr.Constraint,
+		File:             pqErr.File,
+		Line:             stringToInt32OrZero(pqErr.Line),
+		Routine:          pqErr.Routine,
+	}
+
+	// Encode using the pgproto3 library and skip the Error header bytes.
+	encoded := resp.Encode(nil)
+	encoded = encoded[5:]
+
+	return strconv.Quote(string(encoded))
+}
+
 // parseValueWithType parses a value from the copyist recording file, in the
 // format produced by the `formatValueWithType` function:
 //
@@ -151,6 +195,11 @@ func parseValueWithType(valWithTyp string) (interface{}, error) {
 	val := valWithTyp[index+1:]
 
 	switch typ {
+	// Custom pq types.
+	case pqErrorType:
+		return parsePqError(val)
+
+	// Built-in Go types.
 	case nilType:
 		if val != "nil" {
 			return nil, errors.New("expected nil")
@@ -172,12 +221,16 @@ func parseValueWithType(valWithTyp string) (interface{}, error) {
 		}
 		return nil, errors.New("expected true or false")
 	case errorType:
-		if val == "EOF" {
+		s, err := strconv.Unquote(val)
+		if err != nil {
+			return nil, err
+		}
+		if s == "EOF" {
 			// Return reference to singleton object so that callers can compare
 			// by reference.
 			return io.EOF, nil
 		}
-		return errors.New(val), nil
+		return errors.New(s), nil
 	case timeType:
 		return time.Parse(time.RFC3339Nano, val)
 	case stringSliceType:
@@ -212,19 +265,47 @@ func parseValueWithType(valWithTyp string) (interface{}, error) {
 	}
 }
 
+// parsePqError parses a string value that was formatted by formatPqError. This
+// is expected to be Postgres wire protocol bytes that encode a Postgres error,
+// as a quoted string.
+func parsePqError(val string) (interface{}, error) {
+	unquoted, err := strconv.Unquote(val)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp pgproto3.ErrorResponse
+	if err = resp.Decode([]byte(unquoted)); err != nil {
+		return nil, err
+	}
+
+	return &pq.Error{
+		Severity:         resp.Severity,
+		Code:             pq.ErrorCode(resp.Code),
+		Message:          resp.Message,
+		Detail:           resp.Detail,
+		Hint:             resp.Hint,
+		Position:         strconv.Itoa(int(resp.Position)),
+		InternalPosition: strconv.Itoa(int(resp.InternalPosition)),
+		InternalQuery:    resp.InternalQuery,
+		Where:            resp.Where,
+		Schema:           resp.SchemaName,
+		Table:            resp.TableName,
+		Column:           resp.ColumnName,
+		DataTypeName:     resp.DataTypeName,
+		Constraint:       resp.ConstraintName,
+		File:             resp.File,
+		Line:             strconv.Itoa(int(resp.Line)),
+		Routine:          resp.Routine,
+	}, nil
+}
+
 // deepCopyValue makes a deep copy of the given value. It is used to ensure that
 // recorded values are immutable, and will never be updated by the application
 // or driver. One case where this can happen is with driver.Rows.Next, where the
 // storage for output values can be reused across calls to Next.
-//
-// Every data type handled in this function must also be handled in the
-// constructValueAst function. When support for a new driver is added to
-// copyist, this function needs to be updated for any types that can be returned
-// by that driver.
 func deepCopyValue(val interface{}) interface{} {
 	switch t := val.(type) {
-	case int, int64, float64, string, bool, time.Time, error, nil:
-		return t
 	case []string:
 		return append([]string{}, t...)
 	case []uint8:
@@ -236,7 +317,8 @@ func deepCopyValue(val interface{}) interface{} {
 		}
 		return newValues
 	default:
-		panic(fmt.Errorf("unsupported type: %T", t))
+		// Most types don't need special handling.
+		return t
 	}
 }
 
@@ -306,4 +388,14 @@ func parseSlice(s string) ([]string, error) {
 
 		buf.WriteString(scan.TokenText())
 	}
+}
+
+// stringToInt32OrZero converts the given string into an int32 value, or returns
+// zero if it cannot (typically when string is empty).
+func stringToInt32OrZero(val string) int32 {
+	pos, err := strconv.ParseInt(val, 10, 32)
+	if err != nil {
+		return 0
+	}
+	return int32(pos)
 }

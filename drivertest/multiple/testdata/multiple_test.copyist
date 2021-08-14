@@ -2,7 +2,7 @@
 2=ConnQuery	2:"SELECT name FROM customers WHERE id=$1"	1:nil
 3=RowsColumns	9:["name"]
 4=RowsNext	11:[2:"Andy"]	1:nil
-5=RowsNext	11:[]	7:EOF
+5=RowsNext	11:[]	7:"EOF"
 6=RowsNext	11:[2:"Jay"]	1:nil
 
 "TestMultipleDrivers"=1,2,3,4,5,1,2,3,4,5,2,3,6,5,2,3,6,5

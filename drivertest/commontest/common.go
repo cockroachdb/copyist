@@ -131,7 +131,7 @@ func RunTestQuery(t *testing.T, driverName, dataSourceName string) {
 	})
 
 	t.Run("exec error", func(t *testing.T) {
-		_, err = db.Exec("SELECT * FROM nonexistent", 1)
+		_, err = db.Exec("SELECT * FROM \"bad\t table:name\"", 1)
 		require.Error(t, err)
 	})
 
