@@ -22,7 +22,7 @@ import (
 	"testing"
 
 	"github.com/cockroachdb/copyist/drivertest/commontest"
-	_ "github.com/lib/pq/old"
+	_ "github.com/lib/pq"
 )
 
 // TestMain runs all PQ driver-specific tests. To use:
