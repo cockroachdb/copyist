@@ -24,10 +24,14 @@ import (
 	"path"
 	"runtime"
 	"strings"
-	"testing"
 
 	"github.com/jmoiron/sqlx"
 )
+
+type testingT interface {
+	Fatalf(format string, args ...interface{})
+	Name() string
+}
 
 // recordFlag instructs copyist to record all calls to the registered driver, if
 // true. Otherwise, it plays back previously recorded calls.
@@ -152,7 +156,7 @@ func SetSessionInit(callback SessionInitCallback) {
 //
 // Each test or sub-test that needs to be executed independently needs to record
 // its own session.
-func Open(t *testing.T) io.Closer {
+func Open(t testingT) io.Closer {
 	if registered == nil {
 		panic(errors.New("Register was not called"))
 	}
@@ -169,7 +173,7 @@ func Open(t *testing.T) io.Closer {
 	// The recording name is the name of the test.
 	recordingName := t.Name()
 
-	return OpenNamed(pathName, recordingName)
+	return OpenNamed(t, pathName, recordingName)
 }
 
 // OpenNamed is a variant of Open which accepts a caller-specified pathName and
@@ -178,13 +182,13 @@ func Open(t *testing.T) io.Closer {
 // recordings rather than the default "_test.copyist" file in the testdata
 // directory. The given recordingName will be used as the recording name in that
 // file rather than using the testing.T.Name() value.
-func OpenNamed(pathName, recordingName string) io.Closer {
+func OpenNamed(t testingT, pathName, recordingName string) io.Closer {
 	if registered == nil {
 		panic("Register was not called")
 	}
 
 	// Start a new recording or playback session.
-	currentSession = newSession(pathName, recordingName)
+	currentSession = newSession(t, pathName, recordingName)
 
 	// Return a closer that will close the session when called.
 	return closer(func() error {

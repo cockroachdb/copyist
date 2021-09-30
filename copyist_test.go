@@ -16,8 +16,11 @@ package copyist
 
 import (
 	"database/sql"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -61,6 +64,19 @@ func TestUnknownDriver(t *testing.T) {
 	require.Error(t, err, `sql: unknown driver "unknown"`)
 }
 
+type panicTestingT struct {
+	*testing.T
+	err error
+}
+
+func (t *panicTestingT) Fatalf(format string, args ...interface{}) {
+	// We need to panic here to abort the test. The Fatalf calls from session.go
+	// always include a stack trace, but that stack trace makes asserting the error
+	// message more difficult, so we strip off the stack trace.
+	s := strings.Split(fmt.Sprintf(format, args...), "\n")
+	panic(errors.New(s[0]))
+}
+
 // TestRecordingNotFound tests that copyist panics when trying to playback a
 // recording that does not exist.
 func TestRecordingNotFound(t *testing.T) {
@@ -69,9 +85,11 @@ func TestRecordingNotFound(t *testing.T) {
 	visitedRecording = true
 
 	Register("postgres")
-	Open(t)
+
+	Open(&panicTestingT{T: t})
 	db, err := sql.Open("copyist_postgres", "")
 	require.NoError(t, err)
+
 	require.PanicsWithError(
 		t,
 		`no recording exists with this name: TestRecordingNotFound`,

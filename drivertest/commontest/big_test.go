@@ -16,6 +16,8 @@ package commontest_test
 
 import (
 	"database/sql"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -24,13 +26,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type panicTestingT struct {
+	*testing.T
+	err error
+}
+
+func (t *panicTestingT) Fatalf(format string, args ...interface{}) {
+	// We need to panic here to abort the test. The Fatalf calls from session.go
+	// always include a stack trace, but that stack trace makes asserting the error
+	// message more difficult, so we strip off the stack trace.
+	s := strings.Split(fmt.Sprintf(format, args...), "\n")
+	panic(errors.New(s[0]))
+}
+
 // TestBigRecording tests that copyist works with large recordings, and also
 // fails when the recording length > copyist.MaxRecordingSize.
 func TestBigRecording(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	fn := func() {
-		defer copyist.Open(t).Close()
+		defer copyist.Open(&panicTestingT{T:t}).Close()
 		db, _ := sql.Open("copyist_"+driverName, dataSourceName)
 		defer db.Close()
 		queryBigResult(db)
