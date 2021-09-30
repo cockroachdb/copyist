@@ -30,7 +30,12 @@ func TestBigRecording(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	fn := func() {
-		defer copyist.Open(t).Close()
+		closer := copyist.Open(t)
+		// Subtle: run the closer in a closure in order to disable the recovery
+		// handling.
+		defer func() {
+			closer.Close()
+		}()
 		db, _ := sql.Open("copyist_"+driverName, dataSourceName)
 		defer db.Close()
 		queryBigResult(db)
