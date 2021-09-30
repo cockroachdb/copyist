@@ -24,10 +24,16 @@ import (
 	"path"
 	"runtime"
 	"strings"
-	"testing"
 
 	"github.com/jmoiron/sqlx"
 )
+
+// testingT is a subset of the testing.T methods that are used by copyist. The
+// minimal subset allows easier mocking of testing.T in tests.
+type testingT interface {
+	Fatalf(format string, args ...interface{})
+	Name() string
+}
 
 // recordFlag instructs copyist to record all calls to the registered driver, if
 // true. Otherwise, it plays back previously recorded calls.
@@ -152,7 +158,7 @@ func SetSessionInit(callback SessionInitCallback) {
 //
 // Each test or sub-test that needs to be executed independently needs to record
 // its own session.
-func Open(t *testing.T) io.Closer {
+func Open(t testingT) io.Closer {
 	if registered == nil {
 		panic(errors.New("Register was not called"))
 	}
@@ -169,7 +175,7 @@ func Open(t *testing.T) io.Closer {
 	// The recording name is the name of the test.
 	recordingName := t.Name()
 
-	return OpenNamed(pathName, recordingName)
+	return OpenNamed(t, pathName, recordingName)
 }
 
 // OpenNamed is a variant of Open which accepts a caller-specified pathName and
@@ -178,7 +184,7 @@ func Open(t *testing.T) io.Closer {
 // recordings rather than the default "_test.copyist" file in the testdata
 // directory. The given recordingName will be used as the recording name in that
 // file rather than using the testing.T.Name() value.
-func OpenNamed(pathName, recordingName string) io.Closer {
+func OpenNamed(t testingT, pathName, recordingName string) io.Closer {
 	if registered == nil {
 		panic("Register was not called")
 	}
@@ -187,7 +193,12 @@ func OpenNamed(pathName, recordingName string) io.Closer {
 	currentSession = newSession(pathName, recordingName)
 
 	// Return a closer that will close the session when called.
-	return closer(func() error {
+	return closer(func(r interface{}) error {
+		// Convert sessionError panics into fatal test errors.
+		if _, ok := r.(*sessionError); ok {
+			t.Fatalf("%v\n", r)
+		}
+
 		currentSession.Close()
 		currentSession = nil
 		return nil
@@ -228,10 +239,10 @@ func clearPooledConnections() {
 }
 
 // closer implements the io.Closer interface by invoking an arbitrary function
-// when Close is called.
-type closer func() error
+// when Close is called. The function is passed the return value of recover().
+type closer func(r interface{}) error
 
 // Close implements the io.Closer interface method.
 func (c closer) Close() error {
-	return c()
+	return c(recover())
 }

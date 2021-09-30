@@ -58,7 +58,7 @@ func TestIndirectOpen(t *testing.T) {
 
 func TestOpenNamed(t *testing.T) {
 	defer leaktest.Check(t)()
-	defer copyist.OpenNamed("recording.txt", "TestOpenNamed").Close()
+	defer copyist.OpenNamed(t, "recording.txt", "TestOpenNamed").Close()
 
 	// Open database.
 	db, err := sql.Open("copyist_postgres", dataSourceName)
