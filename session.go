@@ -86,14 +86,14 @@ func (s *session) OnDriverOpen(driver *proxyDriver) {
 		// Need to play back a recording file, so parse it now.
 		if _, err := os.Stat(s.file.pathName); !os.IsNotExist(err) {
 			if err = s.file.Parse(); err != nil {
-				panic(fmt.Errorf("error parsing recording file: %v", err))
+				s.panicf("error parsing recording file: %v", err)
 			}
 		}
 
 		// Set the list of records to play back for the current session.
 		s.recording = s.file.GetRecording(s.recordingName)
 		if s.recording == nil {
-			panic(fmt.Errorf("no recording exists with this name: %v", s.recordingName))
+			s.panicf("no recording exists with this name: %v", s.recordingName)
 		}
 	}
 
@@ -113,11 +113,10 @@ func (s *session) AddRecord(rec *record) {
 func (s *session) VerifyRecordWithStringArg(recordTyp recordType, arg string) *record {
 	rec := s.VerifyRecord(recordTyp)
 	if rec.Args[0].(string) != arg {
-		panic(fmt.Errorf(
-			"while replaying %s\n\n"+
-				"mismatched argument to %s, expected %s, got %s\n\n"+
+		s.panicf(
+			"mismatched argument to %s, expected %s, got %s\n\n"+
 				"Do you need to regenerate the recording with the -record flag?",
-			s.recordingName, recordTyp.String(), arg, rec.Args[0].(string)))
+			recordTyp.String(), arg, rec.Args[0].(string))
 	}
 	return rec
 }
@@ -126,19 +125,15 @@ func (s *session) VerifyRecordWithStringArg(recordTyp recordType, arg string) *r
 // with a nice error if no such record exists.
 func (s *session) VerifyRecord(recordTyp recordType) *record {
 	if s.index >= len(s.recording) {
-		panic(fmt.Errorf(
-			"while replaying %s\n\n"+
-				"too many calls to %s\n\n"+
-				"Do you need to regenerate the recording with the -record flag?",
-			s.recordingName, recordTyp.String()))
+		s.panicf(
+			"too many calls to %s\n\n"+
+				"Do you need to regenerate the recording with the -record flag?", recordTyp.String())
 	}
 	rec := s.recording[s.index]
 	if rec.Typ != recordTyp {
-		panic(fmt.Errorf(
-			"while replaying %s\n\n"+
-				"unexpected call to %s\n\n"+
-				"Do you need to regenerate the recording with the -record flag?",
-			s.recordingName, recordTyp.String()))
+		s.panicf(
+			"unexpected call to %s\n\n"+
+				"Do you need to regenerate the recording with the -record flag?", recordTyp.String())
 	}
 	s.index++
 	return rec
@@ -163,4 +158,12 @@ func (s *session) Close() {
 	// Clear any connections pooled during the recording process so that they
 	// don't leak or cause non-deterministic behavior for the next test.
 	clearPooledConnections()
+}
+
+func (s *session) panicf(format string, args ...interface{}) {
+	panic(&sessionError{fmt.Errorf(format, args...)})
+}
+
+type sessionError struct {
+	error
 }

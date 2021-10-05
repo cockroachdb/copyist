@@ -15,7 +15,9 @@
 package copyist
 
 import (
+	"bytes"
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -68,7 +70,9 @@ func TestRecordingNotFound(t *testing.T) {
 	*recordFlag = false
 	visitedRecording = true
 
+	registered = nil
 	Register("postgres")
+
 	Open(t)
 	db, err := sql.Open("copyist_postgres", "")
 	require.NoError(t, err)
@@ -77,6 +81,38 @@ func TestRecordingNotFound(t *testing.T) {
 		`no recording exists with this name: TestRecordingNotFound`,
 		func() { db.Query("SELECT 1") },
 	)
+}
+
+type mockTestingT struct {
+	*testing.T
+	buf bytes.Buffer
+}
+
+func (t *mockTestingT) Fatalf(format string, args ...interface{}) {
+	fmt.Fprintf(&t.buf, format, args...)
+}
+
+func TestSessionPanicsAreCaught(t *testing.T) {
+	// Enter playback mode.
+	*recordFlag = false
+	visitedRecording = true
+
+	registered = nil
+	Register("postgres2")
+
+	m := &mockTestingT{T:t}
+	defer func() {
+		require.Equal(t, "no recording exists with this name: TestSessionPanicsAreCaught\n",
+			m.buf.String())
+	}()
+
+	defer Open(m).Close()
+
+	db, err := sql.Open("copyist_postgres2", "")
+	require.NoError(t, err)
+	// NB: This will panic, but the panic will be caught by the copyist closer and
+	// converted into a call to testing.T.Fatalf.
+	db.Query("SELECT 1")
 }
 
 // TestCopyistEnvVar tests that copyist respects the COPYIST_RECORD environment
