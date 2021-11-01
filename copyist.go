@@ -197,6 +197,8 @@ func OpenNamed(t testingT, pathName, recordingName string) io.Closer {
 		// Convert sessionError panics into fatal test errors.
 		if _, ok := r.(*sessionError); ok {
 			t.Fatalf("%v\n", r)
+		} else if r != nil {
+			panic(r)
 		}
 
 		currentSession.Close()

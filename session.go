@@ -86,14 +86,14 @@ func (s *session) OnDriverOpen(driver *proxyDriver) {
 		// Need to play back a recording file, so parse it now.
 		if _, err := os.Stat(s.file.pathName); !os.IsNotExist(err) {
 			if err = s.file.Parse(); err != nil {
-				s.panicf("error parsing recording file: %v", err)
+				panicf("error parsing recording file: %v", err)
 			}
 		}
 
 		// Set the list of records to play back for the current session.
 		s.recording = s.file.GetRecording(s.recordingName)
 		if s.recording == nil {
-			s.panicf("no recording exists with this name: %v", s.recordingName)
+			panicf("no recording exists with this name: %v", s.recordingName)
 		}
 	}
 
@@ -113,7 +113,7 @@ func (s *session) AddRecord(rec *record) {
 func (s *session) VerifyRecordWithStringArg(recordTyp recordType, arg string) *record {
 	rec := s.VerifyRecord(recordTyp)
 	if rec.Args[0].(string) != arg {
-		s.panicf(
+		panicf(
 			"mismatched argument to %s, expected %s, got %s\n\n"+
 				"Do you need to regenerate the recording with the -record flag?",
 			recordTyp.String(), arg, rec.Args[0].(string))
@@ -125,13 +125,13 @@ func (s *session) VerifyRecordWithStringArg(recordTyp recordType, arg string) *r
 // with a nice error if no such record exists.
 func (s *session) VerifyRecord(recordTyp recordType) *record {
 	if s.index >= len(s.recording) {
-		s.panicf(
+		panicf(
 			"too many calls to %s\n\n"+
 				"Do you need to regenerate the recording with the -record flag?", recordTyp.String())
 	}
 	rec := s.recording[s.index]
 	if rec.Typ != recordTyp {
-		s.panicf(
+		panicf(
 			"unexpected call to %s\n\n"+
 				"Do you need to regenerate the recording with the -record flag?", recordTyp.String())
 	}
@@ -160,7 +160,7 @@ func (s *session) Close() {
 	clearPooledConnections()
 }
 
-func (s *session) panicf(format string, args ...interface{}) {
+func panicf(format string, args ...interface{}) {
 	panic(&sessionError{fmt.Errorf(format, args...)})
 }
 

@@ -115,6 +115,23 @@ func TestSessionPanicsAreCaught(t *testing.T) {
 	db.Query("SELECT 1")
 }
 
+func TestNonSessionPanicsAreNotCaught(t *testing.T) {
+	// Enter playback mode.
+	*recordFlag = false
+	visitedRecording = true
+
+	registered = nil
+	Register("postgres2")
+
+	defer func() {
+		require.Equal(t, recover(), "test panic")
+	}()
+
+	defer Open(t).Close()
+
+	panic("test panic")
+}
+
 // TestCopyistEnvVar tests that copyist respects the COPYIST_RECORD environment
 // variable.
 func TestCopyistEnvVar(t *testing.T) {

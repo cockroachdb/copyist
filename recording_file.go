@@ -139,7 +139,7 @@ func (f *recordingFile) WriteRecordingFile() {
 	// given record declaration.
 	addRecordDecl := func(recordDecl string) int {
 		if len(recordDecl) > MaxRecordingSize {
-			panic(errors.New("recording exceeds copyist.MaxRecordingSize and cannot be written"))
+			panicf("recording exceeds copyist.MaxRecordingSize and cannot be written")
 		}
 
 		hashVal := f.hashStr(recordDecl)
@@ -180,7 +180,7 @@ func (f *recordingFile) WriteRecordingFile() {
 		for i, num := range oldRecordNums {
 			recordDecl, ok := f.recordDecls[num]
 			if !ok {
-				panic(fmt.Errorf("record with number %d must exist", num))
+				panicf("record with number %d must exist", num)
 			}
 			newRecordNums[i] = addRecordDecl(recordDecl)
 		}
@@ -221,13 +221,13 @@ func (f *recordingFile) WriteRecordingFile() {
 	dirName := path.Dir(f.pathName)
 	if _, err := os.Stat(dirName); os.IsNotExist(err) {
 		if err := os.MkdirAll(dirName, 0777); err != nil {
-			panic(err)
+			panicf("%+v", err)
 		}
 	}
 
 	// Write the bytes to disk.
 	if err := ioutil.WriteFile(f.pathName, f.scratch.Bytes(), 0666); err != nil {
-		panic(err)
+		panicf("%+v", err)
 	}
 }
 
@@ -302,7 +302,7 @@ func (f *recordingFile) parseRecordingDecl(decl string) []int {
 	for i := range numStrs {
 		num, err := strconv.Atoi(numStrs[i])
 		if err != nil {
-			panic(err)
+			panicf("%+v", err)
 		}
 
 		// Convert from 1-based record number to 0-based number.
@@ -330,7 +330,7 @@ func (f *recordingFile) formatRecord(record *record) string {
 func (f *recordingFile) parseRecord(recordNum int) *record {
 	r, ok := f.recordDecls[recordNum]
 	if !ok {
-		panic(fmt.Errorf("record with number %d must exist", recordNum))
+		panicf("record with number %d must exist", recordNum)
 	}
 
 	// Record fields are separated by tabs, with the first field being the name
@@ -338,7 +338,7 @@ func (f *recordingFile) parseRecord(recordNum int) *record {
 	fields := splitString(r, "\t")
 	recType, ok := strToRecType[fields[0]]
 	if !ok {
-		panic(fmt.Errorf("record type %v is not recognized", fields[0]))
+		panicf("record type %v is not recognized", fields[0])
 	}
 
 	// Remaining fields are record arguments in "<dataType>:<formattedValue>"
@@ -347,7 +347,7 @@ func (f *recordingFile) parseRecord(recordNum int) *record {
 	for i := 1; i < len(fields); i++ {
 		val, err := parseValueWithType(fields[i])
 		if err != nil {
-			panic(fmt.Errorf("error parsing %s: %v", fields[i], err))
+			panicf("error parsing %s: %v", fields[i], err)
 		}
 		rec.Args = append(rec.Args, val)
 	}
