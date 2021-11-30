@@ -121,7 +121,7 @@ func TestNonSessionPanicsAreNotCaught(t *testing.T) {
 	visitedRecording = true
 
 	registered = nil
-	Register("postgres2")
+	Register("postgres3")
 
 	defer func() {
 		require.Equal(t, recover(), "test panic")
