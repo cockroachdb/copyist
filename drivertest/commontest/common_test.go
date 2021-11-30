@@ -15,7 +15,9 @@
 package commontest_test
 
 import (
+	"bytes"
 	"database/sql"
+	"io"
 	"testing"
 
 	"github.com/cockroachdb/copyist"
@@ -59,6 +61,28 @@ func TestIndirectOpen(t *testing.T) {
 func TestOpenNamed(t *testing.T) {
 	defer leaktest.Check(t)()
 	defer copyist.OpenNamed(t, "recording.txt", "TestOpenNamed").Close()
+
+	// Open database.
+	db, err := sql.Open("copyist_postgres", dataSourceName)
+	require.NoError(t, err)
+	defer db.Close()
+
+	rows, err := db.Query("SELECT 1")
+	require.NoError(t, err)
+	rows.Next()
+}
+
+func TestOpenReadWriteCloser(t *testing.T) {
+	source := CopyistSource(bytes.NewBuffer([]byte(`
+1=DriverOpen	1:nil
+2=ConnQuery	2:"SELECT 1"	1:nil
+3=RowsColumns	9:["?column?"]
+4=RowsNext	11:[4:1]	1:nil
+
+"TestOpenSource"=1,2,3,4`)))
+
+	defer leaktest.Check(t)()
+	defer copyist.OpenSource(t, source, "TestOpenSource").Close()
 
 	// Open database.
 	db, err := sql.Open("copyist_postgres", dataSourceName)
@@ -123,4 +147,20 @@ func TestPooling(t *testing.T) {
 		require.NotEqual(t, sessionID, nextSessionID)
 		rows.Close()
 	})
+}
+
+type copyistSource struct {
+	io.Reader
+}
+
+func (s copyistSource) ReadAll() ([]byte, error) {
+	return io.ReadAll(s.Reader)
+}
+
+func (s copyistSource) WriteAll([]byte) error {
+	return nil
+}
+
+func CopyistSource(r io.Reader) copyist.Source {
+	return copyistSource{r}
 }
