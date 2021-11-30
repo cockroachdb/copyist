@@ -186,11 +186,25 @@ func Open(t testingT) io.Closer {
 // file rather than using the testing.T.Name() value.
 func OpenNamed(t testingT, pathName, recordingName string) io.Closer {
 	if registered == nil {
-		panic("Register was not called")
+		panic(errors.New("Register was not called"))
+	}
+
+	return OpenSource(t, fileSource{PathName: pathName}, recordingName)
+}
+
+// OpenSource is a variant of Open which accepts a caller-specified source and
+// recordingName rather than deriving default values for them. The given source
+// will be used to persist and load recordings rather than the default
+// "_test.copyist" file in the testdata directory. The given recordingName will
+// be used as the recording name in that file rather than using the
+// testing.T.Name() value.
+func OpenSource(t testingT, source Source, recordingName string) io.Closer {
+	if registered == nil {
+		panic(errors.New("Register was not called"))
 	}
 
 	// Start a new recording or playback session.
-	currentSession = newSession(pathName, recordingName)
+	currentSession = newSession(source, recordingName)
 
 	// Return a closer that will close the session when called.
 	return closer(func(r interface{}) error {

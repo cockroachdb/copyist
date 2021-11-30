@@ -30,9 +30,9 @@ type session struct {
 	// during playback mode.
 	index int
 
-	// file is the in-memory representation for the copyist file being read or
+	// recordingSource is the in-memory representation for the copyist recordingSource being read or
 	// written by this session.
-	file *recordingFile
+	recordingSource *recordingSource
 
 	// recordingName is the name of the recording currently being made.
 	recordingName string
@@ -54,14 +54,13 @@ func IsOpen() bool {
 	return currentSession != nil
 }
 
-// newSession creates a new recording or playback session. The session will read
-// or write a new recording of the given name in a file with the given path
-// name.
-func newSession(pathName, recordingName string) *session {
+// newSession creates a new recording or playback session. The session will
+// read or write a new recording of the given name in the given source.
+func newSession(source Source, recordingName string) *session {
 	return &session{
-		recording:     recording{},
-		file:          newRecordingFile(pathName),
-		recordingName: recordingName,
+		recording:       recording{},
+		recordingSource: newRecordingSource(source),
+		recordingName:   recordingName,
 	}
 }
 
@@ -84,14 +83,12 @@ func (s *session) OnDriverOpen(driver *proxyDriver) {
 		}
 	} else {
 		// Need to play back a recording file, so parse it now.
-		if _, err := os.Stat(s.file.pathName); !os.IsNotExist(err) {
-			if err = s.file.Parse(); err != nil {
-				panicf("error parsing recording file: %v", err)
-			}
+		if err := s.recordingSource.Parse(); err != nil && !os.IsNotExist(err) {
+			panicf("error parsing recording file: %v", err)
 		}
 
 		// Set the list of records to play back for the current session.
-		s.recording = s.file.GetRecording(s.recordingName)
+		s.recording = s.recordingSource.GetRecording(s.recordingName)
 		if s.recording == nil {
 			panicf("no recording exists with this name: %v", s.recordingName)
 		}
@@ -147,12 +144,12 @@ func (s *session) Close() {
 		// error and create a new file. Parse errors can happen when there's a
 		// Git merge conflict, and it's convenient to just silently regenerate
 		// the file.
-		_ = s.file.Parse()
+		_ = s.recordingSource.Parse()
 
 		// Add the recording to the in-memory file and then write the file to
 		// disk.
-		s.file.AddRecording(s.recordingName, s.recording)
-		s.file.WriteRecordingFile()
+		s.recordingSource.AddRecording(s.recordingName, s.recording)
+		s.recordingSource.WriteRecording()
 	}
 
 	// Clear any connections pooled during the recording process so that they
