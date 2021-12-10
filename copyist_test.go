@@ -100,7 +100,7 @@ func TestSessionPanicsAreCaught(t *testing.T) {
 	registered = nil
 	Register("postgres2")
 
-	m := &mockTestingT{T:t}
+	m := &mockTestingT{T: t}
 	defer func() {
 		require.Equal(t, "no recording exists with this name: TestSessionPanicsAreCaught\n",
 			m.buf.String())
@@ -121,7 +121,7 @@ func TestNonSessionPanicsAreNotCaught(t *testing.T) {
 	visitedRecording = true
 
 	registered = nil
-	Register("postgres2")
+	Register("postgres3")
 
 	defer func() {
 		require.Equal(t, recover(), "test panic")

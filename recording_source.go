@@ -21,18 +21,53 @@ import (
 	"errors"
 	"fmt"
 	"hash"
-	"io/ioutil"
 	"os"
 	"path"
 	"strconv"
 	"strings"
 )
 
+// Source represents a persistent copyist recording source, generally a file on
+// disk.
+type Source interface {
+	// ReadAll reads the underlying resource this Source represents and returns
+	// the contents.
+	ReadAll() ([]byte, error)
+
+	// WriteAll persists the given data to the underlying resource this Source
+	// represents.
+	WriteAll([]byte) error
+}
+
+// fileSource is a Source that references a file on disk.
+type fileSource struct {
+	// PathName is the location of the copyist recording file (can be relative
+	// or absolute).
+	PathName string
+}
+
+// ReadAll implements Source.
+func (s fileSource) ReadAll() ([]byte, error) {
+	return os.ReadFile(s.PathName)
+}
+
+// WriteAll implements Source.
+func (s fileSource) WriteAll(data []byte) error {
+	// Ensure directory exists.
+	dirName := path.Dir(s.PathName)
+	if _, err := os.Stat(dirName); os.IsNotExist(err) {
+		if err := os.MkdirAll(dirName, 0777); err != nil {
+			return err
+		}
+	}
+	return os.WriteFile(s.PathName, data, 0777)
+}
+
 // hashValue is an MD5 hash type (16 bytes).
 type hashValue [md5.Size]byte
 
-// recordingFile is the in-memory representation for a copyist recording file.
-// recordingFile parses the file and stores its contents in data structures
+// recordingSource is the in-memory representation for a copyist recording file.
+// recordingSource parses the file and stores its contents in data structures
 // that make it convenient to get existing recordings, add new recordings, or
 // write all buffered recordings to disk.
 //
@@ -58,10 +93,8 @@ type hashValue [md5.Size]byte
 // record numbers from the first section that make up that recording. It is
 // common for multiple recording declarations to share one or more records,
 // since driver calls are often quite redundant across tests.
-type recordingFile struct {
-	// pathName is the location of the copyist recording file (can be relative
-	// or absolute).
-	pathName string
+type recordingSource struct {
+	source Source
 
 	// recordDecls is a map of the parsed record declarations in the recording
 	// file, keyed by the number of each declaration. The map value is the
@@ -85,16 +118,16 @@ type recordingFile struct {
 	scratch bytes.Buffer
 }
 
-// newRecordingFile creates a new recordingFile data structure. Parse can be
-// called to add recordings from an existing file, or AddRecording to add new
-// recordings.
-func newRecordingFile(pathName string) *recordingFile {
-	return &recordingFile{pathName: pathName, md5Hasher: md5.New()}
+// newRecordingSource creates a new recordingSource data structure using
+// source. Parse can be called to add recordings from an existing file, or
+// AddRecording to add new recordings.
+func newRecordingSource(source Source) *recordingSource {
+	return &recordingSource{source: source, md5Hasher: md5.New()}
 }
 
 // GetRecording returns the recording from the copyist recording file having the
 // given name. If no such recording exists, then GetRecording returns nil.
-func (f *recordingFile) GetRecording(recordingName string) recording {
+func (f *recordingSource) GetRecording(recordingName string) recording {
 	recordingDecl, ok := f.recordingDecls[recordingName]
 	if !ok {
 		return nil
@@ -116,19 +149,19 @@ func (f *recordingFile) GetRecording(recordingName string) recording {
 // AddRecording adds a new recording to the in-memory file, having the given
 // name. Once WriteRecordingFile is called, added recordings will override any
 // existing recordings and be written to disk.
-func (f *recordingFile) AddRecording(recordingName string, newRecording recording) {
+func (f *recordingSource) AddRecording(recordingName string, newRecording recording) {
 	if f.addRecordings == nil {
 		f.addRecordings = make(map[string]recording)
 	}
 	f.addRecordings[recordingName] = newRecording
 }
 
-// WriteRecordingFile writes all recordings to the recording file in the copyist
+// WriteRecording writes all recordings to the recording file in the copyist
 // recording file format. All recordings buffered in memory will be written,
 // with any recordings added by AddRecording overriding existing recordings.
 // Only record declarations that are used by the written set of recordings will
 // be written to disk.
-func (f *recordingFile) WriteRecordingFile() {
+func (f *recordingSource) WriteRecording() {
 	// Accumulate records and recordings that need to be written to disk.
 	outRecordDecls := make([]string, 0, len(f.recordingDecls)+len(f.addRecordings))
 	outRecordingDecls := make(map[string]string)
@@ -217,16 +250,7 @@ func (f *recordingFile) WriteRecordingFile() {
 		f.scratch.WriteByte('\n')
 	}
 
-	// Ensure directory exists.
-	dirName := path.Dir(f.pathName)
-	if _, err := os.Stat(dirName); os.IsNotExist(err) {
-		if err := os.MkdirAll(dirName, 0777); err != nil {
-			panicf("%+v", err)
-		}
-	}
-
-	// Write the bytes to disk.
-	if err := ioutil.WriteFile(f.pathName, f.scratch.Bytes(), 0666); err != nil {
+	if err := f.source.WriteAll(f.scratch.Bytes()); err != nil {
 		panicf("%+v", err)
 	}
 }
@@ -234,17 +258,16 @@ func (f *recordingFile) WriteRecordingFile() {
 // Parse reads the copyist recording file and extracts recording and record
 // declarations from it, and stores them in in-memory data structures for
 // convenient and performant access.
-func (f *recordingFile) Parse() error {
-	file, err := os.Open(f.pathName)
-	if err != nil {
-		return fmt.Errorf("error opening copyist recording file: %v", err)
-	}
-	defer file.Close()
-
+func (f *recordingSource) Parse() error {
 	recordDecls := make(map[int]string)
 	recordingDecls := make(map[string]string)
 
-	scanner := bufio.NewScanner(file)
+	data, err := f.source.ReadAll()
+	if err != nil {
+		return err
+	}
+
+	scanner := bufio.NewScanner(bytes.NewReader(data))
 	scanner.Buffer(nil, MaxRecordingSize)
 	for scanner.Scan() {
 		text := scanner.Text()
@@ -296,7 +319,7 @@ func (f *recordingFile) Parse() error {
 
 // parseRecordingDecl parses a recording declaration value in a format similar
 // to "1,2,3,4" and returns the resulting list of 0-based record numbers.
-func (f *recordingFile) parseRecordingDecl(decl string) []int {
+func (f *recordingSource) parseRecordingDecl(decl string) []int {
 	numStrs := splitString(decl, ",")
 	nums := make([]int, len(numStrs))
 	for i := range numStrs {
@@ -315,7 +338,7 @@ func (f *recordingFile) parseRecordingDecl(decl string) []int {
 //
 //   ConnPrepare 2:"SELECT COUNT(*) FROM customers"	1:nil
 //
-func (f *recordingFile) formatRecord(record *record) string {
+func (f *recordingSource) formatRecord(record *record) string {
 	f.scratch.Reset()
 	f.scratch.WriteString(record.Typ.String())
 	for _, arg := range record.Args {
@@ -327,7 +350,7 @@ func (f *recordingFile) formatRecord(record *record) string {
 
 // parseRecord instantiates the copyist record declaration identified by the
 // given number in the copyist recording file.
-func (f *recordingFile) parseRecord(recordNum int) *record {
+func (f *recordingSource) parseRecord(recordNum int) *record {
 	r, ok := f.recordDecls[recordNum]
 	if !ok {
 		panicf("record with number %d must exist", recordNum)
@@ -355,7 +378,7 @@ func (f *recordingFile) parseRecord(recordNum int) *record {
 }
 
 // hashStr returns the MD5 hash of the given string.
-func (f *recordingFile) hashStr(s string) hashValue {
+func (f *recordingSource) hashStr(s string) hashValue {
 	f.scratch.Reset()
 	f.scratch.WriteString(s)
 	f.md5Hasher.Reset()
