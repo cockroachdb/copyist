@@ -1,4 +1,7 @@
 # copyist
+
+[![Go Reference](https://pkg.go.dev/badge/github.com/cockroachdb/copyist.svg)](https://pkg.go.dev/github.com/cockroachdb/copyist) [![Latest Release](https://img.shields.io/github/release/cockroachdb/copyist.svg?style=flat-square)](https://github.com/cockroachdb/copyist/releases/latest) [![License](https://img.shields.io/badge/License-Apache_2.0-yellowgreen.svg)](https://opensource.org/licenses/Apache-2.0)
+
 Mocking your SQL database in Go tests has never been easier. The copyist library
 automatically records low-level SQL calls made during your tests. It then
 generates recording files that can be used to play back those calls without
@@ -19,8 +22,10 @@ package). This is because copyist runs at the driver level of Go's `sql`
 package.
 
 ## What problems does copyist solve?
+
 Imagine you have some application code that opens a connection to a Postgres
 database and queries some customer data:
+
 ```go
 func QueryName(db *sql.DB) string {
 	rows, _ := db.Query("SELECT name FROM customers WHERE id=$1", 100)
@@ -34,6 +39,7 @@ func QueryName(db *sql.DB) string {
 	return ""
 }
 ```
+
 The customary way to test this code would be to create a test database and
 populate it with test customer data. However, what if application code modifies
 rows in the database, like removing customers? If the above code runs on a
@@ -41,7 +47,7 @@ modified database, it may not return the expected customer. Therefore, it's
 important to reset the state of the database between test cases so that tests
 behave predictably. But connecting to a database is slow. Running queries is
 slow. And resetting the state of an entire database between every test is
-*really* slow.
+_really_ slow.
 
 Various mocking libraries are another alternative to using a test database.
 These libraries intercept calls at some layer of the application or data access
@@ -51,6 +57,7 @@ manually construct the canned responses, which is time-consuming and fragile
 when application changes occur.
 
 ## How does copyist solve these problems?
+
 copyist includes a Go `sql` package driver that records the low-level SQL calls
 made by application and test code. When a Go test using copyist is invoked with
 the "-record" command-line flag, then the copyist driver will record all SQL
@@ -61,8 +68,10 @@ without needing to access the database. The Go test is none the wiser, and runs
 as if it was using the database.
 
 ## How do I use copyist?
+
 Below is the recommended test pattern for using copyist. The example shows how
-to unit test the `QueryName` function shown above. 
+to unit test the `QueryName` function shown above.
+
 ```go
 func init() {
 	copyist.Register("postgres")
@@ -80,6 +89,7 @@ func TestQueryName(t *testing.T) {
 	}
 }
 ```
+
 In your `init` or `TestMain` function (or any other place that gets called
 before any of the tests), call the `copyist.Register` function. This function
 registers a new driver with Go's `sql` package with the name
@@ -90,34 +100,43 @@ the test.
 
 copyist does need to know whether to run in "recording" mode or "playback" mode.
 To make copyist run in "recording" mode, invoke the test with the `record` flag:
+
 ```
 go test -run TestQueryName -record
-``` 
+```
+
 This will generate a new recording file in a `testdata` subdirectory, with the
 same name as the test file, but with a `.copyist` extension. For example, if the
 test file is called `app_test.go`, then copyist will generate a
 `testdata/app_test.copyist` file containing the recording for the
 `TestQueryName` test. Now try running the test again without the `record` flag:
+
 ```
 go test -run TestQueryName
 ```
+
 It should now run significantly faster. You can also define the COPYIST_RECORD
 environment variable (to any value) to make copyist run in recording mode:
+
 ```
 COPYIST_RECORD=1 go test ./...
-``` 
+```
+
 This is useful when running many test packages, some of which may not link to
 the copyist library, and therefore do not define the `record` flag.
 
 ## How do I reset the database between tests?
+
 You can call `SetSessionInit` to register a function that will clean your
 database:
+
 ```go
 func init() {
     copyist.Register("postgres")
     copyist.SetSessionInit(resetDB)
 }
-``` 
+```
+
 The resetDB function will be called by copyist each time you call `copyist.Open`
 in your tests, as long as copyist is running in "recording" mode. The session
 initialization function can do anything it likes, but usually it will run a SQL
@@ -126,7 +145,9 @@ dropping/creating tables, deleting data from tables, and/or inserting "fixture"
 data into tables that makes testing more convenient.
 
 ## Troubleshooting
+
 #### I'm seeing "unexpected call" panics telling me to "regenerate recording"
+
 This just means that you need to re-run your tests with the "-record" command
 line flag, in order to generate new recordings. Most likely, you changed either
 your application or your test code so that they call the database differently,
@@ -146,6 +167,7 @@ tests aren't expecting the extra call.
 The solution to these problems is to eliminate the non-determinism. For example,
 in the case of an ORM sending a setup query, you might initialize it from your
 `TestMain` method:
+
 ```go
 func TestMain(m *testing.M) {
 	flag.Parse()
@@ -157,9 +179,11 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 ```
+
 This triggers the first query in TestMain, which is always run before tests.
 
 #### The generated copyist recording files are too big
+
 The size of the recording files is directly related to the number of accesses
 your tests make to the database, as well as the amount of data that they
 request. While copyist takes pains to generate efficient recording files that
@@ -171,7 +195,8 @@ pick and choose which tests will use it. The right tool for the right job, and
 all that.
 
 ## Limitations
-* Because of the way copyist works, it cannot be used with test and application
+
+- Because of the way copyist works, it cannot be used with test and application
   code that accesses the database concurrently on multiple threads. This
   includes tests running with the "-parallel" testing flag, which enables tests
   in the same package to run in parallel. Multiple threads are problematic
@@ -183,10 +208,10 @@ all that.
   by reading/modifying the same rows). The recommended pattern is to run test
   packages serially in recording mode, and then in parallel in playback mode.
 
-* copyist currently supports only the Postgres `pq` and `pgx stdlib` drivers. If
+- copyist currently supports only the Postgres `pq` and `pgx stdlib` drivers. If
   you'd like to extend copyist to support other drivers, like MySql or SQLite,
   you're invited to submit a pull request.
 
-* copyist does not implement every `sql` package driver interface and method.
+- copyist does not implement every `sql` package driver interface and method.
   This may mean that copyist may not fully work with some drivers with more
   advanced features. Contributions in this area are welcome.
