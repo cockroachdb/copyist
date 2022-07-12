@@ -20,13 +20,14 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/jackc/pgconn"
 	"io"
 	"strconv"
 	"strings"
 	"text/scanner"
 	"time"
 
-	"github.com/jackc/pgproto3"
+	"github.com/jackc/pgproto3/v2"
 	"github.com/lib/pq"
 )
 
@@ -60,7 +61,8 @@ const (
 	valueSliceType  valueType = 11
 
 	// Custom pq types.
-	pqErrorType valueType = 100
+	pqErrorType     valueType = 100
+	pgConnErrorType valueType = 101
 )
 
 // formatValueWithType converts the given value into a formatted string suitable
@@ -91,6 +93,8 @@ func formatValueWithType(val interface{}) string {
 	// Custom pq types.
 	case *pq.Error:
 		return fmt.Sprintf("%d:%s", pqErrorType, formatPqError(t))
+	case *pgconn.PgError:
+		return fmt.Sprintf("%d:%s", pgConnErrorType, formatPgConnError(t))
 
 	// Built-in Go types.
 	case string:
@@ -176,6 +180,38 @@ func formatPqError(pqErr *pq.Error) string {
 	return strconv.Quote(string(encoded))
 }
 
+// formatPgConnError returns a lib/pq error as a string that is suitable for
+// inclusion in a copyist recording file. It does this by using the pgproto3
+// library to format the error using the Postgres wire protocol, and then
+// returns it as a quoted string.
+func formatPgConnError(pgxError *pgconn.PgError) string {
+	resp := pgproto3.ErrorResponse{
+		Severity:         pgxError.Severity,
+		Code:             pgxError.Code,
+		Message:          pgxError.Message,
+		Detail:           pgxError.Detail,
+		Hint:             pgxError.Hint,
+		Position:         pgxError.Position,
+		InternalPosition: pgxError.InternalPosition,
+		InternalQuery:    pgxError.InternalQuery,
+		Where:            pgxError.Where,
+		SchemaName:       pgxError.SchemaName,
+		TableName:        pgxError.TableName,
+		ColumnName:       pgxError.ColumnName,
+		DataTypeName:     pgxError.DataTypeName,
+		ConstraintName:   pgxError.ConstraintName,
+		File:             pgxError.File,
+		Line:             pgxError.Line,
+		Routine:          pgxError.Routine,
+	}
+
+	// Encode using the pgproto3 library and skip the Error header bytes.
+	encoded := resp.Encode(nil)
+	encoded = encoded[5:]
+
+	return strconv.Quote(string(encoded))
+}
+
 // parseValueWithType parses a value from the copyist recording file, in the
 // format produced by the `formatValueWithType` function:
 //
@@ -198,6 +234,8 @@ func parseValueWithType(valWithTyp string) (interface{}, error) {
 	// Custom pq types.
 	case pqErrorType:
 		return parsePqError(val)
+	case pgConnErrorType:
+		return parsePgConnError(val)
 
 	// Built-in Go types.
 	case nilType:
@@ -298,6 +336,23 @@ func parsePqError(val string) (interface{}, error) {
 		Line:             strconv.Itoa(int(resp.Line)),
 		Routine:          resp.Routine,
 	}, nil
+}
+
+// parsePgConnError parses a string value that was formatted by
+// formatPgConnError. This is expected to be Postgres wire protocol bytes that
+// encode a Postgres error, as a quoted string.
+func parsePgConnError(val string) (interface{}, error) {
+	unquoted, err := strconv.Unquote(val)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp pgproto3.ErrorResponse
+	if err = resp.Decode([]byte(unquoted)); err != nil {
+		return nil, err
+	}
+
+	return pgconn.ErrorResponseToPgError(&resp), nil
 }
 
 // deepCopyValue makes a deep copy of the given value. It is used to ensure that
