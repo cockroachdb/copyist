@@ -17,6 +17,7 @@ package copyist
 import (
 	"database/sql/driver"
 	"errors"
+	"github.com/jackc/pgconn"
 	"io"
 	"math"
 	"testing"
@@ -71,6 +72,25 @@ func TestRoundtrip(t *testing.T) {
 			Constraint:       "some constraint",
 			File:             "some file",
 			Line:             "789",
+			Routine:          "some routine",
+		}},
+		{"format pgconn.PgError value", &pgconn.PgError{
+			Severity:         pq.Efatal,
+			Code:             "53200",
+			Message:          "out of memory",
+			Detail:           "some detail",
+			Hint:             "some hint",
+			Position:         123,
+			InternalPosition: 456,
+			InternalQuery:    "some query",
+			Where:            "somewhere",
+			SchemaName:       "some schema",
+			TableName:        "some table",
+			ColumnName:       "some column",
+			DataTypeName:     "some datatype",
+			ConstraintName:   "some constraint",
+			File:             "some file",
+			Line:             789,
 			Routine:          "some routine",
 		}},
 	}
