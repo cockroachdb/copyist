@@ -263,6 +263,8 @@ func RunTestDataTypes(t *testing.T, driverName, dataSourceName string) {
 	require.NoError(t, rows.Scan(
 		&out.Int, &out.Str, &out.TimeZ, &out.Time, &out.Bool, &out.Bytes,
 		&out.Flt, &out.Dec, &out.FltArr, &out.Uuid))
+	out.TimeZ = out.TimeZ.UTC()
+	out.Time = out.Time.UTC()
 	require.Equal(t, DataTypes{
 		Int: 1, Str: "foo\t\n ,]", TimeZ: parseTime("2000-01-01T10:00:00Z", driverName),
 		Time: parseTime("2000-01-01T10:00:00+00:00", driverName), Bool: true,
@@ -274,6 +276,8 @@ func RunTestDataTypes(t *testing.T, driverName, dataSourceName string) {
 	require.NoError(t, rows.Scan(
 		&out.Int, &out.Str, &out.TimeZ, &out.Time, &out.Bool, &out.Bytes,
 		&out.Flt, &out.Dec, &out.FltArr, &out.Uuid))
+	out.TimeZ = out.TimeZ.UTC()
+	out.Time = out.Time.UTC()
 	require.Equal(t, DataTypes{
 		Int: 2, Str: "", TimeZ: parseTime("2000-02-02T19:11:11Z", driverName),
 		Time: parseTime("2000-02-02T11:11:11+00:00", driverName), Bool: false,
@@ -378,12 +382,5 @@ func parseTime(s string, driverName string) time.Time {
 	if err != nil {
 		panic(err)
 	}
-	if driverName == "pgx" {
-		if t.Location() == time.UTC {
-			t = t.Local()
-		} else {
-			t = t.UTC()
-		}
-	}
-	return t
+	return t.UTC()
 }
