@@ -4,9 +4,9 @@
 4=RowsNext	11:[2:"Andy"]	1:nil
 5=ConnQuery	2:"SHOW session_id"	1:nil
 6=RowsColumns	9:["session_id"]
-7=RowsNext	11:[2:"170131a1c88e1aa80000000000000001"]	1:nil
+7=RowsNext	11:[2:"17014bea0f2510b80000000000000001"]	1:nil
 8=RowsNext	11:[]	7:"EOF"
-9=RowsNext	11:[2:"170131a1ef0808b00000000000000001"]	1:nil
+9=RowsNext	11:[2:"17014bea20f27fd80000000000000001"]	1:nil
 
 "TestIndirectOpen"=1,2,3,4
 "TestPooling/ensure_connections_are_pooled_within_same_copyist_session"=1,5,6,7,8,5,6,7,8
