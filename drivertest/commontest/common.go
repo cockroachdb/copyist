@@ -263,9 +263,11 @@ func RunTestDataTypes(t *testing.T, driverName, dataSourceName string) {
 	require.NoError(t, rows.Scan(
 		&out.Int, &out.Str, &out.TimeZ, &out.Time, &out.Bool, &out.Bytes,
 		&out.Flt, &out.Dec, &out.FltArr, &out.Uuid))
+	out.TimeZ = out.TimeZ.UTC()
+	out.Time = out.Time.UTC()
 	require.Equal(t, DataTypes{
-		Int: 1, Str: "foo\t\n ,]", TimeZ: parseTime("2000-01-01T10:00:00Z", driverName),
-		Time: parseTime("2000-01-01T10:00:00+00:00", driverName), Bool: true,
+		Int: 1, Str: "foo\t\n ,]", TimeZ: parseTime("2000-01-01T10:00:00Z"),
+		Time: parseTime("2000-01-01T10:00:00Z"), Bool: true,
 		Bytes: []byte{'A', 'B', 'C', 'D'}, Flt: 1.1, Dec: "100.1234",
 		FltArr: "{1.1,1.2345678901234567}", Uuid: []byte("8b78978b-7d8b-489e-8ca9-ac4bdc495a82"),
 	}, out)
@@ -274,9 +276,11 @@ func RunTestDataTypes(t *testing.T, driverName, dataSourceName string) {
 	require.NoError(t, rows.Scan(
 		&out.Int, &out.Str, &out.TimeZ, &out.Time, &out.Bool, &out.Bytes,
 		&out.Flt, &out.Dec, &out.FltArr, &out.Uuid))
+	out.TimeZ = out.TimeZ.UTC()
+	out.Time = out.Time.UTC()
 	require.Equal(t, DataTypes{
-		Int: 2, Str: "", TimeZ: parseTime("2000-02-02T19:11:11Z", driverName),
-		Time: parseTime("2000-02-02T11:11:11+00:00", driverName), Bool: false,
+		Int: 2, Str: "", TimeZ: parseTime("2000-02-02T19:11:11Z"),
+		Time: parseTime("2000-02-02T11:11:11Z"), Bool: false,
 		Bytes: []byte{}, Flt: -1e10, Dec: "0.0", FltArr: "{}",
 		Uuid: []byte("00000000-0000-0000-0000-000000000000"),
 	}, out)
@@ -373,17 +377,10 @@ func RunTestSqlx(t *testing.T, driverName, dataSourceName string) {
 	require.NoError(t, tx.Commit())
 }
 
-func parseTime(s string, driverName string) time.Time {
+func parseTime(s string) time.Time {
 	t, err := time.Parse(time.RFC3339Nano, s)
 	if err != nil {
 		panic(err)
-	}
-	if driverName == "pgx" {
-		if t.Location() == time.UTC {
-			t = t.Local()
-		} else {
-			t = t.UTC()
-		}
 	}
 	return t
 }
