@@ -113,7 +113,7 @@ func (s *session) VerifyRecordWithStringArg(recordTyp recordType, arg string) *r
 		panicf(
 			"mismatched argument to %s, expected %s, got %s\n\n"+
 				"Do you need to regenerate the recording with the -record flag?",
-			recordTyp.String(), arg, rec.Args[0].(string))
+			recordTyp.String(), rec.Args[0].(string), arg)
 	}
 	return rec
 }
