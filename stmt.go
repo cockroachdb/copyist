@@ -56,7 +56,10 @@ func (s *proxyStmt) NumInput() int {
 		return num
 	}
 
-	rec := currentSession.VerifyRecord(StmtNumInput)
+	rec, err := currentSession.VerifyRecord(StmtNumInput)
+	if err != nil {
+		panic(err)
+	}
 	return rec.Args[0].(int)
 }
 
@@ -96,8 +99,11 @@ func (s *proxyStmt) ExecContext(
 		return &proxyResult{res: res}, nil
 	}
 
-	rec := currentSession.VerifyRecord(StmtExec)
-	err, _ := rec.Args[0].(error)
+	rec, err := currentSession.VerifyRecord(StmtExec)
+	if err != nil {
+		return nil, err
+	}
+	err, _ = rec.Args[0].(error)
 	if err != nil {
 		return nil, err
 	}
@@ -140,8 +146,11 @@ func (s *proxyStmt) QueryContext(
 		return &proxyRows{rows: rows}, nil
 	}
 
-	rec := currentSession.VerifyRecord(StmtQuery)
-	err, _ := rec.Args[0].(error)
+	rec, err := currentSession.VerifyRecord(StmtQuery)
+	if err != nil {
+		return nil, err
+	}
+	err, _ = rec.Args[0].(error)
 	if err != nil {
 		return nil, err
 	}

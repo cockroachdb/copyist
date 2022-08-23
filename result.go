@@ -34,8 +34,11 @@ func (r *proxyResult) LastInsertId() (int64, error) {
 		return id, err
 	}
 
-	rec := currentSession.VerifyRecord(ResultLastInsertId)
-	err, _ := rec.Args[1].(error)
+	rec, err := currentSession.VerifyRecord(ResultLastInsertId)
+	if err != nil {
+		return 0, err
+	}
+	err, _ = rec.Args[1].(error)
 	if err != nil {
 		return 0, err
 	}
@@ -51,8 +54,11 @@ func (r *proxyResult) RowsAffected() (int64, error) {
 		return affected, err
 	}
 
-	rec := currentSession.VerifyRecord(ResultRowsAffected)
-	err, _ := rec.Args[1].(error)
+	rec, err := currentSession.VerifyRecord(ResultRowsAffected)
+	if err != nil {
+		return 0, err
+	}
+	err, _ = rec.Args[1].(error)
 	if err != nil {
 		return 0, err
 	}

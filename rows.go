@@ -35,7 +35,10 @@ func (r *proxyRows) Columns() []string {
 		return cols
 	}
 
-	rec := currentSession.VerifyRecord(RowsColumns)
+	rec, err := currentSession.VerifyRecord(RowsColumns)
+	if err != nil {
+		panic(err)
+	}
 	return rec.Args[0].([]string)
 }
 
@@ -70,8 +73,11 @@ func (r *proxyRows) Next(dest []driver.Value) error {
 		return err
 	}
 
-	rec := currentSession.VerifyRecord(RowsNext)
-	err, _ := rec.Args[1].(error)
+	rec, err := currentSession.VerifyRecord(RowsNext)
+	if err != nil {
+		return err
+	}
+	err, _ = rec.Args[1].(error)
 	if err != nil {
 		return err
 	}

@@ -125,8 +125,11 @@ func (d *proxyDriver) Open(name string) (driver.Conn, error) {
 		return &proxyConn{driver: d, conn: conn, name: name, session: currentSession}, nil
 	}
 
-	rec := currentSession.VerifyRecord(DriverOpen)
-	err, _ := rec.Args[0].(error)
+	rec, err := currentSession.VerifyRecord(DriverOpen)
+	if err != nil {
+		return nil, err
+	}
+	err, _ = rec.Args[0].(error)
 	if err != nil {
 		return nil, err
 	}
