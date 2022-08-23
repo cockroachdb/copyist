@@ -94,7 +94,7 @@ var registered map[string]*proxyDriver
 // The Register method takes the name of the SQL driver to be wrapped (e.g.
 // "postgres"). Below is an example of how copyist.Register should be invoked.
 //
-//   copyist.Register("postgres")
+//	copyist.Register("postgres")
 //
 // Note that Register can only be called once for a given driver; subsequent
 // attempts will fail with an error. In addition, the same copyist driver must
@@ -139,22 +139,22 @@ func SetSessionInit(callback SessionInitCallback) {
 // alongside the calling test file. If playing back, then the recording will
 // be fetched from that recording file. Here is a typical calling pattern:
 //
-//   func init() {
-//     copyist.Register("postgres")
-//   }
+//	func init() {
+//	  copyist.Register("postgres")
+//	}
 //
-//   func TestMyStuff(t *testing.T) {
-//     defer copyist.Open(t).Close()
-//     ...
-//   }
+//	func TestMyStuff(t *testing.T) {
+//	  defer copyist.Open(t).Close()
+//	  ...
+//	}
 //
 // The call to Open will initiate a new recording session. The deferred call to
 // Close will complete the recording session and write the recording to a file
 // in the testdata/ directory, like:
 //
-//   mystuff_test.go
-//   testdata/
-//     mystuff_test.copyist
+//	mystuff_test.go
+//	testdata/
+//	  mystuff_test.copyist
 //
 // Each test or sub-test that needs to be executed independently needs to record
 // its own session.
@@ -213,6 +213,10 @@ func OpenSource(t testingT, source Source, recordingName string) io.Closer {
 			t.Fatalf("%v\n", r)
 		} else if r != nil {
 			panic(r)
+		}
+
+		if currentSession.verificationErr != nil {
+			t.Fatalf("%+v\n", currentSession.verificationErr.error)
 		}
 
 		currentSession.Close()

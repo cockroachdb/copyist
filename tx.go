@@ -32,8 +32,11 @@ func (t *proxyTx) Commit() error {
 		return err
 	}
 
-	record := currentSession.VerifyRecord(TxCommit)
-	err, _ := record.Args[0].(error)
+	record, err := currentSession.VerifyRecord(TxCommit)
+	if err != nil {
+		return err
+	}
+	err, _ = record.Args[0].(error)
 	return err
 }
 
@@ -45,7 +48,10 @@ func (t *proxyTx) Rollback() error {
 		return err
 	}
 
-	record := currentSession.VerifyRecord(TxRollback)
-	err, _ := record.Args[0].(error)
+	record, err := currentSession.VerifyRecord(TxRollback)
+	if err != nil {
+		return err
+	}
+	err, _ = record.Args[0].(error)
 	return err
 }

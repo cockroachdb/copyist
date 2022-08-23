@@ -92,7 +92,7 @@ func (t *mockTestingT) Fatalf(format string, args ...interface{}) {
 	fmt.Fprintf(&t.buf, format, args...)
 }
 
-func TestSessionPanicsAreCaught(t *testing.T) {
+func TestSessionFailuresAreFatalfd(t *testing.T) {
 	// Enter playback mode.
 	*recordFlag = false
 	visitedRecording = true
@@ -102,7 +102,7 @@ func TestSessionPanicsAreCaught(t *testing.T) {
 
 	m := &mockTestingT{T: t}
 	defer func() {
-		require.Equal(t, "no recording exists with this name: TestSessionPanicsAreCaught\n",
+		require.Equal(t, "no recording exists with this name: TestSessionFailuresAreFatalfd\n",
 			m.buf.String())
 	}()
 
@@ -110,8 +110,8 @@ func TestSessionPanicsAreCaught(t *testing.T) {
 
 	db, err := sql.Open("copyist_postgres2", "")
 	require.NoError(t, err)
-	// NB: This will panic, but the panic will be caught by the copyist closer and
-	// converted into a call to testing.T.Fatalf.
+	// NB: This will return an error, but the the copyist closer will track the
+	// first error and convert it into a call to testing.T.Fatalf.
 	db.Query("SELECT 1")
 }
 
