@@ -107,33 +107,36 @@ func (s *session) AddRecord(rec *record) {
 // VerifyRecordWithStringArg returns one of the records in this session's
 // recording, failing with a nice error if no such record exists, or if its
 // first argument does not match the given string.
-func (s *session) VerifyRecordWithStringArg(recordTyp recordType, arg string) *record {
-	rec := s.VerifyRecord(recordTyp)
+func (s *session) VerifyRecordWithStringArg(recordTyp recordType, arg string) (*record, error) {
+	rec, err := s.VerifyRecord(recordTyp)
+	if err != nil {
+		return nil, err
+	}
 	if rec.Args[0].(string) != arg {
-		panicf(
+		return nil, sessionErr(
 			"mismatched argument to %s, expected %s, got %s\n\n"+
 				"Do you need to regenerate the recording with the -record flag?",
 			recordTyp.String(), rec.Args[0].(string), arg)
 	}
-	return rec
+	return rec, nil
 }
 
 // VerifyRecord returns one of the records in this session's recording, failing
 // with a nice error if no such record exists.
-func (s *session) VerifyRecord(recordTyp recordType) *record {
+func (s *session) VerifyRecord(recordTyp recordType) (*record, error) {
 	if s.index >= len(s.recording) {
-		panicf(
+		return nil, sessionErr(
 			"too many calls to %s\n\n"+
 				"Do you need to regenerate the recording with the -record flag?", recordTyp.String())
 	}
 	rec := s.recording[s.index]
 	if rec.Typ != recordTyp {
-		panicf(
+		return nil, sessionErr(
 			"unexpected call to %s\n\n"+
 				"Do you need to regenerate the recording with the -record flag?", recordTyp.String())
 	}
 	s.index++
-	return rec
+	return rec, nil
 }
 
 // Close ends this session, writing any recording file and clearing state.
@@ -157,7 +160,11 @@ func (s *session) Close() {
 	clearPooledConnections()
 }
 
-func panicf(format string, args ...interface{}) {
+func sessionErr(format string, args ...interface{}) error {
+	return &sessionError{fmt.Errorf(format, args...)}
+}
+
+func panicf(format string, args ...interface{}) error {
 	panic(&sessionError{fmt.Errorf(format, args...)})
 }
 
