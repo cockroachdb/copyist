@@ -97,8 +97,11 @@ func (c *proxyConn) ExecContext(
 		return &proxyResult{res: res}, nil
 	}
 
-	rec := currentSession.VerifyRecordWithStringArg(ConnExec, query)
-	err, _ := rec.Args[1].(error)
+	rec, err := currentSession.VerifyRecordWithStringArg(ConnExec, query)
+	if err != nil {
+		return nil, err
+	}
+	err, _ = rec.Args[1].(error)
 	if err != nil {
 		return nil, err
 	}
@@ -130,8 +133,11 @@ func (c *proxyConn) PrepareContext(ctx context.Context, query string) (driver.St
 		return &proxyStmt{stmt: stmt}, nil
 	}
 
-	rec := currentSession.VerifyRecordWithStringArg(ConnPrepare, query)
-	err, _ := rec.Args[1].(error)
+	rec, err := currentSession.VerifyRecordWithStringArg(ConnPrepare, query)
+	if err != nil {
+		return nil, err
+	}
+	err, _ = rec.Args[1].(error)
 	if err != nil {
 		return nil, err
 	}
@@ -169,8 +175,11 @@ func (c *proxyConn) QueryContext(
 		return &proxyRows{rows: rows}, nil
 	}
 
-	rec := currentSession.VerifyRecordWithStringArg(ConnQuery, query)
-	err, _ := rec.Args[1].(error)
+	rec, err := currentSession.VerifyRecordWithStringArg(ConnQuery, query)
+	if err != nil {
+		return nil, err
+	}
+	err, _ = rec.Args[1].(error)
 	if err != nil {
 		return nil, err
 	}
@@ -232,8 +241,11 @@ func (c *proxyConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.
 		return &proxyTx{tx: tx}, nil
 	}
 
-	rec := currentSession.VerifyRecord(ConnBegin)
-	err, _ := rec.Args[0].(error)
+	rec, err := currentSession.VerifyRecord(ConnBegin)
+	if err != nil {
+		return nil, err
+	}
+	err, _ = rec.Args[0].(error)
 	if err != nil {
 		return nil, err
 	}

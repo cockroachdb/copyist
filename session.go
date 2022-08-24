@@ -17,6 +17,8 @@ package copyist
 import (
 	"fmt"
 	"os"
+
+	"github.com/pkg/errors"
 )
 
 // session is state used during copyist recording and playback to track progress
@@ -39,6 +41,10 @@ type session struct {
 
 	// isInit is set to true once this session has been initialized.
 	isInit bool
+
+	// verificationErr is the first sessionError encountered when replaying
+	// this session for better error reporting later on.
+	verificationErr *sessionError
 }
 
 // currentSession is a global instance of session that tracks state for the
@@ -107,33 +113,36 @@ func (s *session) AddRecord(rec *record) {
 // VerifyRecordWithStringArg returns one of the records in this session's
 // recording, failing with a nice error if no such record exists, or if its
 // first argument does not match the given string.
-func (s *session) VerifyRecordWithStringArg(recordTyp recordType, arg string) *record {
-	rec := s.VerifyRecord(recordTyp)
+func (s *session) VerifyRecordWithStringArg(recordTyp recordType, arg string) (*record, error) {
+	rec, err := s.VerifyRecord(recordTyp)
+	if err != nil {
+		return nil, err
+	}
 	if rec.Args[0].(string) != arg {
-		panicf(
+		return nil, s.sessionErr(
 			"mismatched argument to %s, expected %s, got %s\n\n"+
 				"Do you need to regenerate the recording with the -record flag?",
 			recordTyp.String(), rec.Args[0].(string), arg)
 	}
-	return rec
+	return rec, nil
 }
 
 // VerifyRecord returns one of the records in this session's recording, failing
 // with a nice error if no such record exists.
-func (s *session) VerifyRecord(recordTyp recordType) *record {
+func (s *session) VerifyRecord(recordTyp recordType) (*record, error) {
 	if s.index >= len(s.recording) {
-		panicf(
+		return nil, s.sessionErr(
 			"too many calls to %s\n\n"+
 				"Do you need to regenerate the recording with the -record flag?", recordTyp.String())
 	}
 	rec := s.recording[s.index]
 	if rec.Typ != recordTyp {
-		panicf(
+		return nil, s.sessionErr(
 			"unexpected call to %s\n\n"+
 				"Do you need to regenerate the recording with the -record flag?", recordTyp.String())
 	}
 	s.index++
-	return rec
+	return rec, nil
 }
 
 // Close ends this session, writing any recording file and clearing state.
@@ -157,7 +166,15 @@ func (s *session) Close() {
 	clearPooledConnections()
 }
 
-func panicf(format string, args ...interface{}) {
+func (s *session) sessionErr(format string, args ...interface{}) error {
+	err := &sessionError{errors.Errorf(format, args...)}
+	if s.verificationErr == nil {
+		s.verificationErr = err
+	}
+	return err
+}
+
+func panicf(format string, args ...interface{}) error {
 	panic(&sessionError{fmt.Errorf(format, args...)})
 }
 

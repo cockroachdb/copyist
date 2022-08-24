@@ -17,6 +17,7 @@ package commontest_test
 import (
 	"bytes"
 	"database/sql"
+	"fmt"
 	"io"
 	"testing"
 
@@ -94,6 +95,84 @@ func TestOpenReadWriteCloser(t *testing.T) {
 	rows.Next()
 }
 
+func TestRollbackWithRecover(t *testing.T) {
+	// This bug is only present in playback mode, short circuit if we're
+	// recording.
+	if copyist.IsRecording() {
+		return
+	}
+
+	// This is a regression test for a deadlock when copyist would panic upon
+	// recording failures. We mount an intentionally out of date source that
+	// will fail on any action after opening our transaction. Our transaction
+	// helper will attempt a rollback in the case of an error or a panic, which
+	// would catch copyist's old behavior of panicking upon out of date
+	// recordings.
+	// We assert that we hit an out of date error and that rollback is called
+	// and returns.
+	source := CopyistSource(bytes.NewBuffer([]byte(`
+1=DriverOpen	1:nil
+2=ConnBegin	1:nil
+
+"TestRollbackWithRecover"=1,2`)))
+
+	defer leaktest.Check(t)()
+
+	var mt mockT
+
+	closer := copyist.OpenSource(&mt, source, t.Name())
+
+	// Open database.
+	db, err := sql.Open("copyist_postgres", dataSourceName)
+	require.NoError(t, err)
+	defer db.Close()
+
+	fnErr, txErr := execTransaction(db, func(tx *sql.Tx) error {
+		_, err := tx.Query("SELECT 1")
+		return err
+	})
+
+	require.EqualError(t, fnErr, "too many calls to ConnQuery\n\nDo you need to regenerate the recording with the -record flag?")
+	require.EqualError(t, txErr, "too many calls to TxRollback\n\nDo you need to regenerate the recording with the -record flag?")
+
+	require.NoError(t, closer.Close()) // closer never errors.
+
+	// Verify that the call to .Close invokes t.Fatalf with the first session
+	// error that we encountered.
+	require.Contains(t, mt.failure, "too many calls to ConnQuery")
+	// Verify that t.Fatalf includes the stacktrace leading to the call that
+	// triggered the first error. In this case, we look for the error coming
+	// from the first closure defined within this test function.
+	require.Contains(t, mt.failure, fmt.Sprintf("commontest_test.%s.func1", t.Name()))
+}
+
+// execTransaction is a transaction helper function that attempts a rollback in
+// the case of panics of errors. It returns both the closure error and the
+// error of either commiting or rolling back.
+// It is intended to mimic the behavior of
+// https://github.com/cockroachdb/cockroach-go/blob/21a237074d6c3c35b68ec43e8d0c9e9ed714d21a/crdb/common.go#L38
+func execTransaction(db *sql.DB, fn func(*sql.Tx) error) (fnErr error, txErr error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			txErr = tx.Rollback()
+			panic(r)
+		}
+
+		if fnErr == nil {
+			txErr = tx.Commit()
+		} else {
+			txErr = tx.Rollback()
+		}
+	}()
+
+	return fn(tx), nil
+}
+
 func TestIsOpen(t *testing.T) {
 	require.False(t, copyist.IsOpen())
 
@@ -163,4 +242,13 @@ func (s copyistSource) WriteAll([]byte) error {
 
 func CopyistSource(r io.Reader) copyist.Source {
 	return copyistSource{r}
+}
+
+type mockT struct {
+	failure string
+}
+
+func (mockT) Name() string { return "" }
+func (t *mockT) Fatalf(format string, args ...interface{}) {
+	t.failure = fmt.Sprintf(format, args...)
 }
