@@ -41,6 +41,10 @@ var recordFlag = flag.Bool("record", true, "record sql database accesses")
 
 var visitedRecording bool
 
+// disableConnQueryFlag instructs copyist to disable the use of ConnQuery, if true. This is useful when using copyist with
+// drivers that do not support ConnQuery (and fallback to ConnPrepare). One such case is `sqlserver` and `azuresql`.
+var disableConnQueryFlag = flag.Bool("disable-conn-query", false, "disable the usage of ConnQuery")
+
 // IsRecording returns true if copyist is currently in recording mode.
 func IsRecording() bool {
 	// Determine whether the "record" flag was explicitly passed rather than
@@ -64,6 +68,11 @@ func IsRecording() bool {
 		visitedRecording = true
 	}
 	return *recordFlag
+}
+
+// IsConnQueryDisabled returns true if usage of ConnQuery is disabled.
+func IsConnQueryDisabled() bool {
+	return *disableConnQueryFlag
 }
 
 // MaxRecordingSize is the maximum size, in bytes, of a single recording in its
