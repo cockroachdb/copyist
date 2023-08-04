@@ -251,3 +251,15 @@ func (c *proxyConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.
 	}
 	return &proxyTx{}, nil
 }
+
+// CheckNamedValue implements driver.NamedValueChecker. If the underlying
+// connection implements this interface, this method is delegated to it.
+// Otherwise, driver.ErrSkip is returned as per the driver.NamedValueChecker
+// documentation.
+func (c *proxyConn) CheckNamedValue(nv *driver.NamedValue) (err error) {
+	if nvc, ok := c.conn.(driver.NamedValueChecker); ok {
+		return nvc.CheckNamedValue(nv)
+	}
+
+	return driver.ErrSkip
+}
