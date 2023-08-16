@@ -45,6 +45,8 @@ var visitedRecording bool
 // drivers that do not support ConnQuery (and fallback to ConnPrepare). One such case is `sqlserver` and `azuresql`.
 var disableConnQueryFlag = flag.Bool("disable-conn-query", false, "disable the usage of ConnQuery")
 
+var visitedDisableConnQueryFlag bool
+
 // IsRecording returns true if copyist is currently in recording mode.
 func IsRecording() bool {
 	// Determine whether the "record" flag was explicitly passed rather than
@@ -72,6 +74,26 @@ func IsRecording() bool {
 
 // IsConnQueryDisabled returns true if usage of ConnQuery is disabled.
 func IsConnQueryDisabled() bool {
+	// Determine whether the "disable-conn-query" flag was explicitly passed rather than
+	// defaulted. This is painful and slow in Go, so do it just once.
+	if !visitedDisableConnQueryFlag {
+		found := false
+		flag.Visit(func(f *flag.Flag) {
+			if f.Name == "disable-conn-query" {
+				found = true
+			}
+		})
+		if !found {
+			// If the disable-conn-query flag was not explicitly specified, then next check
+			// the value of the COPYIST_DISABLE_CONN_QUERY environment variable.
+			if os.Getenv("COPYIST_DISABLE_CONN_QUERY") != "" {
+				*disableConnQueryFlag = true
+			} else {
+				*disableConnQueryFlag = false
+			}
+		}
+		visitedDisableConnQueryFlag = true
+	}
 	return *disableConnQueryFlag
 }
 
