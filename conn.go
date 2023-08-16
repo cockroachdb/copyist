@@ -74,6 +74,10 @@ func (c *proxyConn) ResetSession(ctx context.Context) error {
 func (c *proxyConn) ExecContext(
 	ctx context.Context, query string, args []driver.NamedValue,
 ) (driver.Result, error) {
+	if IsConnExecDisabled() {
+		fmt.Println("The use of ConnExec is disabled. Returning driver.ErrSkip to allow driver to fallback to other methods (ConnPrepare).")
+		return nil, driver.ErrSkip
+	}
 	if IsRecording() {
 		var res driver.Result
 		var err error

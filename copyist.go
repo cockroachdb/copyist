@@ -47,6 +47,12 @@ var disableConnQueryFlag = flag.Bool("disable-conn-query", false, "disable the u
 
 var visitedDisableConnQueryFlag bool
 
+// disableConnExecFlag instructs copyist to disable the use of ConnExec, if true. This is useful when using copyist with
+// drivers that do not support ConnExec (and fallback to ConnPrepare).
+var disableConnExecFlag = flag.Bool("disable-conn-exec", false, "disable the usage of ConnExec")
+
+var visitedDisableConnExecFlag bool
+
 // IsRecording returns true if copyist is currently in recording mode.
 func IsRecording() bool {
 	// Determine whether the "record" flag was explicitly passed rather than
@@ -95,6 +101,31 @@ func IsConnQueryDisabled() bool {
 		visitedDisableConnQueryFlag = true
 	}
 	return *disableConnQueryFlag
+}
+
+// IsConnExecDisabled returns true if usage of ConnExec is disabled.
+func IsConnExecDisabled() bool {
+	// Determine whether the "disable-conn-exec" flag was explicitly passed rather than
+	// defaulted. This is painful and slow in Go, so do it just once.
+	if !visitedDisableConnExecFlag {
+		found := false
+		flag.Visit(func(f *flag.Flag) {
+			if f.Name == "disable-conn-exec" {
+				found = true
+			}
+		})
+		if !found {
+			// If the disable-conn-exec flag was not explicitly specified, then next check
+			// the value of the COPYIST_DISABLE_CONN_EXEC environment variable.
+			if os.Getenv("COPYIST_DISABLE_CONN_EXEC") != "" {
+				*disableConnExecFlag = true
+			} else {
+				*disableConnExecFlag = false
+			}
+		}
+		visitedDisableConnExecFlag = true
+	}
+	return *disableConnExecFlag
 }
 
 // MaxRecordingSize is the maximum size, in bytes, of a single recording in its
