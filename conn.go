@@ -17,7 +17,6 @@ package copyist
 import (
 	"context"
 	"database/sql/driver"
-	"fmt"
 )
 
 // proxyConn records and plays back calls to driver.Conn methods.
@@ -75,7 +74,6 @@ func (c *proxyConn) ExecContext(
 	ctx context.Context, query string, args []driver.NamedValue,
 ) (driver.Result, error) {
 	if IsConnExecDisabled() {
-		fmt.Println("The use of ConnExec is disabled. Returning driver.ErrSkip to allow driver to fallback to other methods (ConnPrepare).")
 		return nil, driver.ErrSkip
 	}
 	if IsRecording() {
@@ -157,7 +155,6 @@ func (c *proxyConn) QueryContext(
 	ctx context.Context, query string, args []driver.NamedValue,
 ) (driver.Rows, error) {
 	if IsConnQueryDisabled() {
-		fmt.Println("The use of ConnQuery is disabled. Returning driver.ErrSkip to allow driver to fallback to other methods (ConnPrepare).")
 		return nil, driver.ErrSkip
 	}
 	if IsRecording() {
