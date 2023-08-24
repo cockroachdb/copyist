@@ -45,13 +45,13 @@ var visitedRecording bool
 // drivers that do not support ConnQuery (and fallback to ConnPrepare). One such case is `sqlserver` and `azuresql`.
 var disableConnQueryFlag = flag.Bool("disable-conn-query", false, "disable the usage of ConnQuery")
 
-var visitedDisableConnQueryFlag bool
+var hasSetDisableConnQueryFlag bool
 
 // disableConnExecFlag instructs copyist to disable the use of ConnExec, if true. This is useful when using copyist with
 // drivers that do not support ConnExec (and fallback to ConnPrepare).
 var disableConnExecFlag = flag.Bool("disable-conn-exec", false, "disable the usage of ConnExec")
 
-var visitedDisableConnExecFlag bool
+var hasSetDisableConnExecFlag bool
 
 // IsRecording returns true if copyist is currently in recording mode.
 func IsRecording() bool {
@@ -78,11 +78,16 @@ func IsRecording() bool {
 	return *recordFlag
 }
 
+func DisableConnQuery() {
+	*disableConnQueryFlag = true
+	hasSetDisableConnQueryFlag = true
+}
+
 // IsConnQueryDisabled returns true if usage of ConnQuery is disabled.
 func IsConnQueryDisabled() bool {
 	// Determine whether the "disable-conn-query" flag was explicitly passed rather than
 	// defaulted. This is painful and slow in Go, so do it just once.
-	if !visitedDisableConnQueryFlag {
+	if !hasSetDisableConnQueryFlag {
 		found := false
 		flag.Visit(func(f *flag.Flag) {
 			if f.Name == "disable-conn-query" {
@@ -98,16 +103,21 @@ func IsConnQueryDisabled() bool {
 				*disableConnQueryFlag = false
 			}
 		}
-		visitedDisableConnQueryFlag = true
+		hasSetDisableConnQueryFlag = true
 	}
 	return *disableConnQueryFlag
+}
+
+func DisableConnExec() {
+	*disableConnExecFlag = true
+	hasSetDisableConnExecFlag = true
 }
 
 // IsConnExecDisabled returns true if usage of ConnExec is disabled.
 func IsConnExecDisabled() bool {
 	// Determine whether the "disable-conn-exec" flag was explicitly passed rather than
 	// defaulted. This is painful and slow in Go, so do it just once.
-	if !visitedDisableConnExecFlag {
+	if !hasSetDisableConnExecFlag {
 		found := false
 		flag.Visit(func(f *flag.Flag) {
 			if f.Name == "disable-conn-exec" {
@@ -123,7 +133,7 @@ func IsConnExecDisabled() bool {
 				*disableConnExecFlag = false
 			}
 		}
-		visitedDisableConnExecFlag = true
+		hasSetDisableConnExecFlag = true
 	}
 	return *disableConnExecFlag
 }
