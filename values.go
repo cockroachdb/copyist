@@ -269,7 +269,10 @@ func parseValueWithType(valWithTyp string) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		if s == "EOF" {
+		if s == driver.ErrSkip.Error() {
+			return driver.ErrSkip, nil
+		}
+		if s == io.EOF.Error() {
 			// Return reference to singleton object so that callers can compare
 			// by reference.
 			return io.EOF, nil
