@@ -73,15 +73,15 @@ type hashValue [md5.Size]byte
 //
 // The recording file is in the following format:
 //
-//   1=DriverOpen	1:nil
-//   2=ConnPrepare	2:"SELECT name FROM customers WHERE id=$1"	1:nil
-//   3=StmtNumInput	3:1
-//   4=StmtQuery	1:nil
-//   5=RowsColumns	9:["name"]
-//   6=RowsNext	11:[2:"Andy"]	1:nil
-//   7=RowsNext	11:[]	7:EOF
+//	1=DriverOpen	1:nil
+//	2=ConnPrepare	2:"SELECT name FROM customers WHERE id=$1"	1:nil
+//	3=StmtNumInput	3:1
+//	4=StmtQuery	1:nil
+//	5=RowsColumns	9:["name"]
+//	6=RowsNext	11:[2:"Andy"]	1:nil
+//	7=RowsNext	11:[]	7:EOF
 //
-//   "github.com/cockroachdb/copyist/pqtest_test.TestQuery"=1,2,3,4,5,6,7
+//	"github.com/cockroachdb/copyist/pqtest_test.TestQuery"=1,2,3,4,5,6,7
 //
 // The first section is a numbered list of tab-delimited copyist record
 // declaration. Each record declaration represents a call to a driver method,
@@ -336,8 +336,7 @@ func (f *recordingSource) parseRecordingDecl(decl string) []int {
 
 // formatRecord returns the given copyist record as a string in a format like:
 //
-//   ConnPrepare 2:"SELECT COUNT(*) FROM customers"	1:nil
-//
+//	ConnPrepare 2:"SELECT COUNT(*) FROM customers"	1:nil
 func (f *recordingSource) formatRecord(record *record) string {
 	f.scratch.Reset()
 	f.scratch.WriteString(record.Typ.String())
