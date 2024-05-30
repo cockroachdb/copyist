@@ -137,13 +137,13 @@ func (d *proxyDriver) Open(name string) (driver.Conn, error) {
 }
 
 // tryPoolConnection puts the given connection into the pool if:
-//   1. There is no connection in the pool already.
-//   2. The connection was created by the current copyist session, not by a
-//      previous session. This check is necessary to ensure that connections are
-//      always re-opened for each session.
-//   3. ResetSession on the underlying connection succeeds (or if the underlying
-//      connection is nil, or doesn't implement the driver.SessionResetter
-//      interface).
+//  1. There is no connection in the pool already.
+//  2. The connection was created by the current copyist session, not by a
+//     previous session. This check is necessary to ensure that connections are
+//     always re-opened for each session.
+//  3. ResetSession on the underlying connection succeeds (or if the underlying
+//     connection is nil, or doesn't implement the driver.SessionResetter
+//     interface).
 func (d *proxyDriver) tryPoolConnection(c *proxyConn) bool {
 	if d.pooled != nil {
 		// Already another connection in the pool.
