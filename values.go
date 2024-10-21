@@ -36,14 +36,13 @@ import (
 // translation. If/when other drivers are supported, they will need to add
 // support for any types that are not already handled:
 //
-//   1. Add enumeration value below. Use an explicit numeric value so that its
-//      easier to look up a type by number. For a new driver, leave plenty of
-//      space between numeric runs so that previous drivers can add more types.
-//   2. Add a case to the formatValueWithType switch.
-//   3. Add a case to the parseValueWithType switch.
-//   4. Add a case to the deepCopyValue switch if the value's content might be
-//      mutated across calls to the driver.
-//
+//  1. Add enumeration value below. Use an explicit numeric value so that its
+//     easier to look up a type by number. For a new driver, leave plenty of
+//     space between numeric runs so that previous drivers can add more types.
+//  2. Add a case to the formatValueWithType switch.
+//  3. Add a case to the parseValueWithType switch.
+//  4. Add a case to the deepCopyValue switch if the value's content might be
+//     mutated across calls to the driver.
 type valueType int
 
 const (
@@ -70,18 +69,18 @@ const (
 // formatValueWithType converts the given value into a formatted string suitable
 // for inclusion in a copyist recording file. The format is as follows:
 //
-//   <dataType>:<formattedValue>
+//	<dataType>:<formattedValue>
 //
 // where dataType is the numeric value of the `copyist.valueType` enumeration,
 // and stringValue is a formatted representation of the value that conforms to
 // these rules:
 //
-//   1. Contains no linefeed or newline characters. This allows simple
-//      line-by-line parsing of record declarations.
-//   2. Contains no tab characters. This allows a simple string split by the tab
-//      character to break a line into fields.
-//   3. Contains no bracket or comma characters, except as part of a valid Go
-//      literal string format. This allows nested slice types to be parsed.
+//  1. Contains no linefeed or newline characters. This allows simple
+//     line-by-line parsing of record declarations.
+//  2. Contains no tab characters. This allows a simple string split by the tab
+//     character to break a line into fields.
+//  3. Contains no bracket or comma characters, except as part of a valid Go
+//     literal string format. This allows nested slice types to be parsed.
 //
 // Many data types already follow these rules with nothing more to do. Those
 // data types that do not (e.g. string) need to perform escaping in order to
@@ -178,7 +177,7 @@ func formatPqError(pqErr *pq.Error) string {
 	}
 
 	// Encode using the pgproto3 library and skip the Error header bytes.
-	encoded := resp.Encode(nil)
+	encoded, _ := resp.Encode(nil)
 	encoded = encoded[5:]
 
 	return strconv.Quote(string(encoded))
@@ -210,7 +209,7 @@ func formatPgConnError(pgxError *pgconn.PgError) string {
 	}
 
 	// Encode using the pgproto3 library and skip the Error header bytes.
-	encoded := resp.Encode(nil)
+	encoded, _ := resp.Encode(nil)
 	encoded = encoded[5:]
 
 	return strconv.Quote(string(encoded))
@@ -219,7 +218,7 @@ func formatPgConnError(pgxError *pgconn.PgError) string {
 // parseValueWithType parses a value from the copyist recording file, in the
 // format produced by the `formatValueWithType` function:
 //
-//   <dataType>:<formattedValue>
+//	<dataType>:<formattedValue>
 //
 // Only well-known "valueType" data types are supported.
 func parseValueWithType(valWithTyp string) (interface{}, error) {
@@ -399,12 +398,12 @@ func splitString(s, sep string) []string {
 // parseSlice is a simple parser that handles nested slice declarations of the
 // form:
 //
-//   ["foo", ["bar", 55], "baz"]
+//	["foo", ["bar", 55], "baz"]
 //
 // It returns a slice of strings representing the "top-level" strings in the
 // slice, equivalent to this:
 //
-//   []string{"foo", `["bar", 55]`, "baz"}
+//	[]string{"foo", `["bar", 55]`, "baz"}
 //
 // Tokenization of the input string is done according to Golang rules.
 func parseSlice(s string) ([]string, error) {
