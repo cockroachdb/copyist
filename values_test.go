@@ -93,6 +93,10 @@ func TestRoundtrip(t *testing.T) {
 			Line:             789,
 			Routine:          "some routine",
 		}},
+		{"format error with code value", &errorWithCode{
+			msg:  "constraint failed: UNIQUE constraint failed: customers.id (2067)",
+			code: 2067,
+		}},
 	}
 
 	for _, cas := range cases {
@@ -111,4 +115,24 @@ func parseTime(s string) time.Time {
 		panic(err)
 	}
 	return t
+}
+
+// testCoderError simulates a driver-specific error type (like
+// modernc.org/sqlite's Error) that copyist cannot reconstruct, but which
+// exposes its code via a Code() int method.
+type testCoderError struct{ code int }
+
+func (e *testCoderError) Error() string { return "some error\nmore stuff" }
+func (e *testCoderError) Code() int     { return e.code }
+
+func TestErrorWithCode(t *testing.T) {
+	s := formatValueWithType(&testCoderError{code: 1555})
+	val, err := parseValueWithType(s)
+	require.NoError(t, err)
+
+	// Playback returns a copyist-defined error that preserves message + code.
+	coder, ok := val.(interface{ Code() int })
+	require.True(t, ok)
+	require.Equal(t, 1555, coder.Code())
+	require.Equal(t, "some error\nmore stuff", val.(error).Error())
 }

@@ -46,18 +46,19 @@ import (
 type valueType int
 
 const (
-	_               valueType = 0
-	nilType         valueType = 1
-	stringType      valueType = 2
-	intType         valueType = 3
-	int64Type       valueType = 4
-	float64Type     valueType = 5
-	boolType        valueType = 6
-	errorType       valueType = 7
-	timeType        valueType = 8
-	stringSliceType valueType = 9
-	byteSliceType   valueType = 10
-	valueSliceType  valueType = 11
+	_                 valueType = 0
+	nilType           valueType = 1
+	stringType        valueType = 2
+	intType           valueType = 3
+	int64Type         valueType = 4
+	float64Type       valueType = 5
+	boolType          valueType = 6
+	errorType         valueType = 7
+	timeType          valueType = 8
+	stringSliceType   valueType = 9
+	byteSliceType     valueType = 10
+	valueSliceType    valueType = 11
+	errorWithCodeType valueType = 12
 
 	// Custom pq types.
 	pqErrorType valueType = 100
@@ -65,6 +66,34 @@ const (
 	// Custom pgx types.
 	pgConnErrorType valueType = 200
 )
+
+// coder is implemented by driver-specific error types that expose a numeric
+// error code via a Code method (e.g. modernc.org/sqlite's Error type). Such
+// errors cannot always be reconstructed during playback (their fields may be
+// unexported), so copyist instead preserves the error message and code using
+// the errorWithCode type.
+type coder interface {
+	error
+	Code() int
+}
+
+// errorWithCode is returned during playback in place of a recorded
+// driver-specific error that implemented the coder interface. It preserves
+// the original error's message and numeric code, which test code can access
+// via:
+//
+//	var coder interface{ Code() int }
+//	errors.As(err, &coder)
+type errorWithCode struct {
+	msg  string
+	code int
+}
+
+// Error implements the error interface.
+func (e *errorWithCode) Error() string { return e.msg }
+
+// Code returns the numeric code of the recorded error.
+func (e *errorWithCode) Code() int { return e.code }
 
 // formatValueWithType converts the given value into a formatted string suitable
 // for inclusion in a copyist recording file. The format is as follows:
@@ -98,6 +127,11 @@ func formatValueWithType(val interface{}) string {
 	// Custom pgx types.
 	case *pgconn.PgError:
 		return fmt.Sprintf("%d:%s", pgConnErrorType, formatPgConnError(t))
+
+	// Generic error types that expose a numeric code (e.g. the
+	// modernc.org/sqlite Error type).
+	case coder:
+		return fmt.Sprintf("%d:%d %s", errorWithCodeType, t.Code(), strconv.Quote(t.Error()))
 
 	// Built-in Go types.
 	case string:
@@ -249,6 +283,22 @@ func parseValueWithType(valWithTyp string) (interface{}, error) {
 	// Custom pgx types.
 	case pgConnErrorType:
 		return parsePgConnError(val)
+
+	// Generic error types that expose a numeric code.
+	case errorWithCodeType:
+		index := strings.Index(val, " ")
+		if index == -1 {
+			return nil, errors.New("expected space after error code")
+		}
+		code, err := strconv.Atoi(val[:index])
+		if err != nil {
+			return nil, err
+		}
+		msg, err := strconv.Unquote(val[index+1:])
+		if err != nil {
+			return nil, err
+		}
+		return &errorWithCode{msg: msg, code: code}, nil
 
 	// Built-in Go types.
 	case nilType:
