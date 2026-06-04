@@ -28,6 +28,7 @@ package sqlitetest
 
 import (
 	"database/sql"
+	"errors"
 	"flag"
 	"os"
 	"testing"
@@ -37,6 +38,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 	_ "modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 const (
@@ -213,4 +215,25 @@ func TestSqlx(t *testing.T) {
 	var cust Customer
 	require.NoError(t, db.Get(&cust, "SELECT id, name FROM customers WHERE id=?", 1))
 	require.Equal(t, Customer{ID: 1, Name: "Andy"}, cust)
+}
+
+// TestError tests that SQLite error codes survive recording and playback.
+// copyist cannot reconstruct modernc.org/sqlite's Error type during playback
+// (its fields are unexported), but it preserves the message and numeric code,
+// which tests can access via an interface assertion that works identically in
+// both modes.
+func TestError(t *testing.T) {
+	defer copyist.Open(t).Close()
+
+	db, err := sql.Open("copyist_sqlite", dataSourceName)
+	require.NoError(t, err)
+	defer db.Close()
+
+	// id=1 already exists, so this violates the primary key constraint.
+	_, err = db.Exec("INSERT INTO customers VALUES (1, 'Dup')")
+	require.Error(t, err)
+
+	var coder interface{ Code() int }
+	require.True(t, errors.As(err, &coder))
+	require.Equal(t, sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY, coder.Code())
 }
