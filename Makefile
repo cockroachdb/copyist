@@ -15,7 +15,8 @@
 # test re-records all copyist tests from a clean state and then re-runs them
 # using copyist playback. Note that the drivertest/pqtestold test package has to
 # be run separately because it has its own go.mod file (see comment in that file
-# for reasons why).
+# for reasons why). The drivertest/sqlitetest package also has its own go.mod
+# file and is run separately, but it does not require docker.
 #
 # NOTE: Run this before submitting a PR.
 #
@@ -26,6 +27,8 @@ test:
 	# Re-record all tests.
 	@COPYIST_RECORD=1 go test ./... -p=1 -count=1
 	@cd drivertest/pqtestold && COPYIST_RECORD=1 go test ./... -p=1 -count=1
+	@cd drivertest/sqlitetest && COPYIST_RECORD=1 go test ./... -p=1 -count=1
 	# Run all tests using playback.
 	@go test ./... -count=1
 	@cd drivertest/pqtestold && go test ./... -count=1
+	@cd drivertest/sqlitetest && go test ./... -count=1

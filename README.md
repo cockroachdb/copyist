@@ -98,6 +98,11 @@ registers a new driver with Go's `sql` package with the name
 session, and then generates a playback file when `Close` is called at the end of
 the test.
 
+The same pattern works for the cgo-free SQLite driver `modernc.org/sqlite`:
+call `copyist.Register("sqlite")` and open connections with the
+`copyist_sqlite` driver name. Recording a SQLite test only requires a local
+database file - no server needs to be running.
+
 copyist does need to know whether to run in "recording" mode or "playback" mode.
 To make copyist run in "recording" mode, invoke the test with the `record` flag:
 
@@ -208,9 +213,25 @@ all that.
   by reading/modifying the same rows). The recommended pattern is to run test
   packages serially in recording mode, and then in parallel in playback mode.
 
-- copyist currently supports only the Postgres `pq` and `pgx stdlib` drivers. If
-  you'd like to extend copyist to support other drivers, like MySql or SQLite,
-  you're invited to submit a pull request.
+- copyist currently supports the Postgres `pq` and `pgx stdlib` drivers, as
+  well as the cgo-free SQLite `modernc.org/sqlite` driver. If you'd like to
+  extend copyist to support other drivers, like MySql, you're invited to
+  submit a pull request.
+
+- During playback, driver-specific error types cannot always be reconstructed.
+  For Postgres drivers, copyist fully reconstructs `*pq.Error` and
+  `*pgconn.PgError` values. For `modernc.org/sqlite`, the driver's error type
+  has unexported fields and cannot be reconstructed; copyist instead preserves
+  the error message and numeric code. Test code that needs the code should
+  assert it through an interface, which works in both recording and playback
+  modes:
+
+  ```go
+  var coder interface{ Code() int }
+  if errors.As(err, &coder) {
+      fmt.Println(coder.Code())
+  }
+  ```
 
 - copyist does not implement every `sql` package driver interface and method.
   This may mean that copyist may not fully work with some drivers with more
