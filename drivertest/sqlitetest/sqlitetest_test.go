@@ -31,6 +31,7 @@ import (
 	"flag"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/cockroachdb/copyist"
 	"github.com/stretchr/testify/require"
@@ -95,4 +96,99 @@ func TestQuery(t *testing.T) {
 	require.NoError(t, rows.Scan(&name))
 	require.Equal(t, "Andy", name)
 	require.False(t, rows.Next())
+}
+
+// TestInsert inserts a row and ensures that it's been committed.
+func TestInsert(t *testing.T) {
+	defer copyist.Open(t).Close()
+
+	db, err := sql.Open("copyist_sqlite", dataSourceName)
+	require.NoError(t, err)
+	defer db.Close()
+
+	res, err := db.Exec("INSERT INTO customers VALUES (4, 'Joe')")
+	require.NoError(t, err)
+	affected, err := res.RowsAffected()
+	require.NoError(t, err)
+	require.Equal(t, int64(1), affected)
+
+	var cnt int
+	require.NoError(t, db.QueryRow("SELECT COUNT(*) FROM customers").Scan(&cnt))
+	require.Equal(t, 4, cnt)
+}
+
+// TestMultiStatement runs multiple SQL statements in a single Exec operation.
+func TestMultiStatement(t *testing.T) {
+	defer copyist.Open(t).Close()
+
+	db, err := sql.Open("copyist_sqlite", dataSourceName)
+	require.NoError(t, err)
+	defer db.Close()
+
+	_, err = db.Exec("INSERT INTO customers VALUES (4, 'Joe'); INSERT INTO customers VALUES (5, 'Mary')")
+	require.NoError(t, err)
+
+	var cnt int
+	require.NoError(t, db.QueryRow("SELECT COUNT(*) FROM customers").Scan(&cnt))
+	require.Equal(t, 5, cnt)
+}
+
+// TestTxns commits and aborts transactions.
+func TestTxns(t *testing.T) {
+	defer copyist.Open(t).Close()
+
+	db, err := sql.Open("copyist_sqlite", dataSourceName)
+	require.NoError(t, err)
+	defer db.Close()
+
+	// Commit a transaction.
+	tx, err := db.Begin()
+	require.NoError(t, err)
+	_, err = tx.Exec("INSERT INTO customers VALUES (4, 'Joe')")
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit())
+
+	// Roll back a transaction.
+	tx, err = db.Begin()
+	require.NoError(t, err)
+	_, err = tx.Exec("INSERT INTO customers VALUES (5, 'Mary')")
+	require.NoError(t, err)
+	require.NoError(t, tx.Rollback())
+
+	var cnt int
+	require.NoError(t, db.QueryRow("SELECT COUNT(*) FROM customers").Scan(&cnt))
+	require.Equal(t, 4, cnt)
+}
+
+// TestDataTypes round-trips the SQLite storage classes (INTEGER, REAL, TEXT,
+// BLOB) plus time values through recording and playback.
+func TestDataTypes(t *testing.T) {
+	defer copyist.Open(t).Close()
+
+	db, err := sql.Open("copyist_sqlite", dataSourceName)
+	require.NoError(t, err)
+	defer db.Close()
+
+	_, err = db.Exec("CREATE TABLE datatypes (i INTEGER, r REAL, t TEXT, b BLOB, ts TIMESTAMP)")
+	require.NoError(t, err)
+
+	when := time.Date(2021, 1, 2, 3, 4, 5, 0, time.UTC)
+	_, err = db.Exec("INSERT INTO datatypes VALUES (?, ?, ?, ?, ?)",
+		int64(1), 1.5, "foo", []byte{1, 2, 3}, when)
+	require.NoError(t, err)
+
+	var (
+		i  int64
+		r  float64
+		s  string
+		b  []byte
+		ts time.Time
+	)
+	require.NoError(t, db.QueryRow("SELECT i, r, t, b, ts FROM datatypes").
+		Scan(&i, &r, &s, &b, &ts))
+	require.Equal(t, int64(1), i)
+	require.Equal(t, 1.5, r)
+	require.Equal(t, "foo", s)
+	require.Equal(t, []byte{1, 2, 3}, b)
+	require.True(t, when.Equal(ts))
 }

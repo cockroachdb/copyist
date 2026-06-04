@@ -1,7 +1,27 @@
 1=DriverOpen	1:nil
-2=ConnQuery	2:"SELECT name FROM customers WHERE id=?"	1:nil
-3=RowsColumns	9:["name"]
-4=RowsNext	11:[2:"Andy"]	1:nil
-5=RowsNext	11:[]	7:"EOF"
+2=ConnExec	2:"INSERT INTO customers VALUES (4, 'Joe')"	1:nil
+3=ResultRowsAffected	4:1	1:nil
+4=ConnQuery	2:"SELECT COUNT(*) FROM customers"	1:nil
+5=RowsColumns	9:["COUNT(*)"]
+6=RowsNext	11:[4:4]	1:nil
+7=ConnExec	2:"INSERT INTO customers VALUES (4, 'Joe'); INSERT INTO customers VALUES (5, 'Mary')"	1:nil
+8=RowsNext	11:[4:5]	1:nil
+9=ConnQuery	2:"SELECT name FROM customers WHERE id=?"	1:nil
+10=RowsColumns	9:["name"]
+11=RowsNext	11:[2:"Andy"]	1:nil
+12=RowsNext	11:[]	7:"EOF"
+13=ConnBegin	1:nil
+14=TxCommit	1:nil
+15=ConnExec	2:"INSERT INTO customers VALUES (5, 'Mary')"	1:nil
+16=TxRollback	1:nil
+17=ConnExec	2:"CREATE TABLE datatypes (i INTEGER, r REAL, t TEXT, b BLOB, ts TIMESTAMP)"	1:nil
+18=ConnExec	2:"INSERT INTO datatypes VALUES (?, ?, ?, ?, ?)"	1:nil
+19=ConnQuery	2:"SELECT i, r, t, b, ts FROM datatypes"	1:nil
+20=RowsColumns	9:["i","r","t","b","ts"]
+21=RowsNext	11:[4:1,5:1.5,2:"foo",10:AQID,8:2021-01-02T03:04:05Z]	1:nil
 
-"TestQuery"=1,2,3,4,5
+"TestInsert"=1,2,3,4,5,6
+"TestMultiStatement"=1,7,4,5,8
+"TestQuery"=1,9,10,11,12
+"TestTxns"=1,13,2,14,13,15,16,4,5,6
+"TestDataTypes"=1,17,18,19,20,21
