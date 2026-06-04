@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/cockroachdb/copyist"
+	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 	_ "modernc.org/sqlite"
 )
@@ -191,4 +192,25 @@ func TestDataTypes(t *testing.T) {
 	require.Equal(t, "foo", s)
 	require.Equal(t, []byte{1, 2, 3}, b)
 	require.True(t, when.Equal(ts))
+}
+
+// TestSqlx tests usage of the `sqlx` package with copyist. sqlx does not know
+// the "sqlite" driver name (only "sqlite3"), so it falls back to the UNKNOWN
+// bind type, which leaves `?` placeholders untouched - exactly what SQLite
+// expects.
+func TestSqlx(t *testing.T) {
+	defer copyist.Open(t).Close()
+
+	db, err := sqlx.Open("copyist_sqlite", dataSourceName)
+	require.NoError(t, err)
+	defer db.Close()
+
+	type Customer struct {
+		ID   int    `db:"id"`
+		Name string `db:"name"`
+	}
+
+	var cust Customer
+	require.NoError(t, db.Get(&cust, "SELECT id, name FROM customers WHERE id=?", 1))
+	require.Equal(t, Customer{ID: 1, Name: "Andy"}, cust)
 }

@@ -115,6 +115,9 @@ func Register(driverName string) {
 	// driver name, sqlx falls back to the default ?, which won't work with some
 	// databases. Register the copyist driver name with sqlx and tell it to use
 	// the bind type of the underlying driver rather than the default ?.
+	// Note that for driver names unknown to sqlx (e.g. "sqlite", as registered
+	// by modernc.org/sqlite), BindType returns UNKNOWN, which sqlx treats like
+	// the default ? - the placeholder style SQLite uses natively.
 	copyistDriverName := copyistDriverName(driverName)
 	sqlx.BindDriver(copyistDriverName, sqlx.BindType(driverName))
 
