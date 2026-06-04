@@ -23,3 +23,17 @@ jobs:
 
     - name: Test
       run: go test -v ./...
+
+  test-sqlite:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: '1.23'
+
+    - name: Test sqlite driver (playback)
+      working-directory: drivertest/sqlitetest
+      run: go test -v ./...
