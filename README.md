@@ -125,6 +125,26 @@ COPYIST_RECORD=1 go test ./...
 This is useful when running many test packages, some of which may not link to
 the copyist library, and therefore do not define the `record` flag.
 
+## Is there a complete example?
+
+Yes - see [examples/pq](examples/pq) for a complete, runnable example using
+the Postgres `pq` driver. The recording file is committed, so this works
+immediately after cloning, with no database and no Docker:
+
+```
+go test ./examples/pq
+```
+
+To re-record it against a real Postgres instance (requires Docker; the test
+starts a throwaway container automatically):
+
+```
+go test ./examples/pq -record
+```
+
+The example also shows that code using `context.Context` works unchanged:
+copyist forwards contexts to the wrapped driver, so there is nothing to mock.
+
 ## How do I reset the database between tests?
 
 You can call `SetSessionInit` to register a function that will clean your
